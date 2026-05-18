@@ -36,26 +36,26 @@ The system follows a standard **monolithic Django MVC pattern**, deployed locall
 
 ```mermaid
 graph TD
-    subgraph "Client Layer"
-        A[👤 Admin User<br/>Browser on LAN]
-        B[📱 Remote User<br/>via ngrok tunnel]
+    subgraph Client_Layer["Client Layer"]
+        A["Admin User - Browser on LAN"]
+        B["Remote User - via ngrok"]
     end
 
-    subgraph "Application Layer (Django)"
-        C[Django Admin<br/>Custom UI]
-        D[Custom Views<br/>Print & ReadyMix]
-        E[Django ORM]
+    subgraph App_Layer["Application Layer - Django"]
+        C["Django Admin - Custom UI"]
+        D["Custom Views - Print & ReadyMix"]
+        E["Django ORM"]
     end
 
-    subgraph "Business Logic Layer (models.py)"
-        F[Invoice.save<br/>Auto-numbering + Due Date]
-        G[InvoiceItem.save<br/>F() atomic stock deduction]
-        H[Product.save<br/>Auto-category extraction]
-        I[ReadyMix View<br/>transaction.atomic]
+    subgraph Logic_Layer["Business Logic - models.py"]
+        F["Invoice.save - Auto-numbering + Due Date"]
+        G["InvoiceItem.save - Atomic F() stock deduction"]
+        H["Product.save - Auto-category extraction"]
+        I["ReadyMix View - transaction.atomic"]
     end
 
-    subgraph "Data Layer"
-        J[(SQLite Database)]
+    subgraph Data_Layer["Data Layer"]
+        J[("SQLite Database")]
     end
 
     A --> C
