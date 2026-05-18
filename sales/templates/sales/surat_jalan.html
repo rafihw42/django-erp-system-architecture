@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Surat Jalan: {{ invoice.nomor_faktur }}</title>
+    <style>
+        /* Force exact Half Letter dimensions for printing */
+        @page {
+            size: 8.5in 5.5in;
+            margin: 0.13in;
+        }
+
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 10pt;
+            line-height: 1.2;
+            margin: 0;
+            padding: 0;
+            color: black;
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .page-container {
+            display: flex;
+            flex-direction: column;
+            height: 5in;
+        }
+
+        /* NEW: Centered Title */
+        .header-title {
+            font-size: 15pt;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        /* NEW: Split Header Section */
+        .top-section {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        /* Borderless tables for perfect colon (:) alignment */
+        .info-table {
+            border-collapse: collapse;
+            border: none;
+        }
+
+        .info-table td {
+            border: none;
+            padding: 1px 4px;
+            vertical-align: top;
+        }
+
+        .info-label {
+            width: 100px;
+            font-weight: normal;
+        }
+
+        .info-colon {
+            width: 10px;
+            text-align: center;
+        }
+
+        .info-address {
+            font-size: 8pt;
+            line-height: 1.1;
+        }
+
+        .table-container {
+            flex-grow: 1;
+        }
+
+        /* TABLE STYLING */
+        table.main-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-left: none;
+            border-right: none;
+        }
+
+        table.main-table th,
+        table.main-table td {
+            border: 1px solid black;
+            padding: 2px 6px;
+        }
+
+        table.main-table th {
+            font-weight: bold;
+            text-align: center;
+        }
+
+        table.main-table tbody tr {
+            height: 16px;
+        }
+
+        /* NEW COLUMN WIDTHS */
+        .no-col {
+            width: 5%;
+            text-align: center;
+            border-left: none;
+        }
+
+        .kode-col {
+            width: 20%;
+        }
+
+        .name-col {
+            width: 60%;
+        }
+
+        .qty-col {
+            width: 15%;
+            text-align: center;
+            border-right: none;
+        }
+
+        /* FOOTER (Kept exactly as before!) */
+        .signature-section {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+            text-align: center;
+        }
+
+        .sign-box {
+            width: 30%;
+        }
+
+        .sign-space {
+            height: 40px;
+        }
+    </style>
+</head>
+
+<body onload="window.print()">
+
+    <div class="page-container">
+
+        <div>
+            <div class="header-title">Surat Jalan CK</div>
+
+            <div class="top-section">
+                <div>
+                    <table class="info-table">
+                        <tr>
+                            <td class="info-label">No. Faktur</td>
+                            <td class="info-colon">:</td>
+                            <td><b>{{ invoice.nomor_faktur }}</b></td>
+                        </tr>
+                        <tr>
+                            <td class="info-label">Penerima</td>
+                            <td class="info-colon">:</td>
+                            <td>{{ invoice.customer.nama_cust }}</td>
+                        </tr>
+                        <tr>
+                            <td class="info-label">Alamat Penerima</td>
+                            <td class="info-colon">:</td>
+                            <td class="info-address">
+                                {{ invoice.customer.alamat|default:"........................................................"}}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div>
+                    <table class="info-table">
+                        <tr>
+                            <td class="info-label">Tanggal</td>
+                            <td class="info-colon">:</td>
+                            <td>{{ invoice.tanggal|date:"d M Y" }}</td>
+                        </tr>
+                        <tr>
+                            <td class="info-label">Telp. Penerima</td>
+                            <td class="info-colon">:</td>
+                            <td>{{ invoice.customer.no_telp|default:"........................................" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table class="main-table">
+                <thead>
+                    <tr>
+                        <th class="no-col">No</th>
+                        <th class="kode-col">Kode Barang</th>
+                        <th class="name-col">Nama Barang</th>
+                        <th class="qty-col">Kuantitas</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                    {% for item in items %}
+                    <tr>
+                        <td class="no-col">{{ forloop.counter }}</td>
+                        <td class="kode-col">{{ item.product.kode_barang }}</td>
+                        <td class="name-col">{{ item.product.nama_barang }}</td>
+                        <td class="qty-col">
+                            {{ item.qty }} {% if item.product.kategori == 'TH' %}LTR{% else %}KLG{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+
+                    {% for _ in empty_rows %}
+                    <tr>
+                        <td class="no-col">&nbsp;</td>
+                        <td class="kode-col">&nbsp;</td>
+                        <td class="name-col">&nbsp;</td>
+                        <td class="qty-col">&nbsp;</td>
+                    </tr>
+                    {% endfor %}
+
+                </tbody>
+            </table>
+        </div>
+
+        <div class="signature-section">
+            <div class="sign-box">
+                Tanda tangan yang menerima,
+                <div class="sign-space"></div>
+            </div>
+            <div class="sign-box">
+                Mengetahui,
+                <div class="sign-space"></div>
+            </div>
+            <div class="sign-box">
+                Hormat kami,
+                <div class="sign-space"></div>
+            </div>
+        </div>
+
+    </div>
+
+</body>
+
+</html>

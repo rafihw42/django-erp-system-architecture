@@ -1,0 +1,17 @@
+/* Invoice list — ensure all columns visible on small screens */
+#result_list table {
+    table-layout: auto;
+}
+
+#result_list th, 
+#result_list td {
+    padding: 6px 8px;
+    word-wrap: break-word; /* Allows long text like Customer Names to wrap */
+}
+
+/* Force the nomor_resi input to be compact, overriding Django's default .vTextField width */
+#result_list td.field-nomor_resi input {
+    width: 90px !important;
+    font-size: 11px !important;
+    padding: 4px !important;
+}

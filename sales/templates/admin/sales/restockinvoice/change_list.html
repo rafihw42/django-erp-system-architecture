@@ -1,0 +1,14 @@
+{% extends "admin/change_list.html" %}
+
+{% block result_list %}
+    
+    {% if filtered_grand_total %}
+    <div style="background-color: #d1ecf1; color: #0c5460; padding: 15px; margin-bottom: 20px; border: 1px solid #bee5eb; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 16px;">Total Pembelian Berdasarkan Filter:</span>
+        <span style="font-size: 24px; font-weight: bold;">{{ filtered_grand_total }}</span>
+    </div>
+    {% endif %}
+
+    {{ block.super }}
+    
+{% endblock %}

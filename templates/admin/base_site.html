@@ -1,0 +1,60 @@
+{% extends "admin/base_site.html" %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    /* Filter toggle button */
+    .filter-toggle-btn {
+        position: fixed;
+        right: 20px;
+        bottom: 20px;
+        z-index: 1000;
+        background: #417690;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 44px;
+        height: 44px;
+        font-size: 20px;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        transition: background 0.2s, transform 0.2s;
+    }
+    .filter-toggle-btn:hover {
+        background: #205067;
+        transform: scale(1.1);
+    }
+    #changelist-filter.filter-hidden {
+        display: none !important;
+    }
+</style>
+{% endblock %}
+
+{% block footer %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const filterPanel = document.getElementById('changelist-filter');
+    if (!filterPanel) return;
+
+    const btn = document.createElement('button');
+    btn.className = 'filter-toggle-btn';
+    btn.title = 'Toggle Filter';
+    btn.type = 'button';
+    btn.innerHTML = '🔍';
+    document.body.appendChild(btn);
+
+    const isHidden = localStorage.getItem('adminFilterHidden') === 'true';
+    if (isHidden) {
+        filterPanel.classList.add('filter-hidden');
+        btn.style.opacity = '0.6';
+    }
+
+    btn.addEventListener('click', function() {
+        const hidden = filterPanel.classList.toggle('filter-hidden');
+        localStorage.setItem('adminFilterHidden', hidden);
+        btn.style.opacity = hidden ? '0.6' : '1';
+    });
+});
+</script>
+{% endblock %}

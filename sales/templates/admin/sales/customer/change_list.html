@@ -1,0 +1,24 @@
+{% extends "admin/change_list.html" %}
+
+{% block result_list %}
+    
+    {% if regional_turnover %}
+    <div style="display: flex; gap: 15px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 10px;">
+        
+        {% for region in regional_turnover %}
+        <div style="background-color: #ffffff; border-left: 4px solid #28a745; padding: 15px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); min-width: 220px; flex-shrink: 0;">
+            <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px;">
+                📍 {{ region.wilayah }}
+            </div>
+            <div style="font-size: 22px; font-weight: 800; color: #343a40;">
+                {{ region.revenue }}
+            </div>
+        </div>
+        {% endfor %}
+
+    </div>
+    {% endif %}
+
+    {{ block.super }}
+    
+{% endblock %}

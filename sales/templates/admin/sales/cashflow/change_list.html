@@ -1,0 +1,96 @@
+{% extends "admin/change_list.html" %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    .filter-toggle-btn {
+        position: fixed;
+        right: 20px;
+        bottom: 20px;
+        z-index: 1000;
+        background: #417690;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 44px;
+        height: 44px;
+        font-size: 20px;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        transition: background 0.2s, transform 0.2s;
+    }
+    .filter-toggle-btn:hover {
+        background: #205067;
+        transform: scale(1.1);
+    }
+    #changelist-filter.filter-hidden {
+        display: none !important;
+    }
+</style>
+{% endblock %}
+
+{% block result_list %}
+    
+    <div style="display: flex; gap: 20px; margin-bottom: 25px; overflow-x: auto; padding-bottom: 5px;">
+        
+        <div style="background-color: #ffffff; border-left: 5px solid #28a745; padding: 15px 20px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); flex: 1; min-width: 200px;">
+            <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px;">
+                📈 Total Pemasukan (Debit)
+            </div>
+            <div style="font-size: 24px; font-weight: 800; color: #28a745;">
+                {{ summary_in }}
+            </div>
+        </div>
+
+        <div style="background-color: #ffffff; border-left: 5px solid #dc3545; padding: 15px 20px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); flex: 1; min-width: 200px;">
+            <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px;">
+                📉 Total Pengeluaran (Kredit)
+            </div>
+            <div style="font-size: 24px; font-weight: 800; color: #dc3545;">
+                {{ summary_out }}
+            </div>
+        </div>
+
+        <div style="background-color: #ffffff; border-left: 5px solid #007bff; padding: 15px 20px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); flex: 1; min-width: 200px;">
+            <div style="font-size: 11px; color: #6c757d; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px;">
+                💰 Saldo Kas Bersih
+            </div>
+            <div style="font-size: 24px; font-weight: 800; color: #007bff;">
+                {{ summary_saldo }}
+            </div>
+        </div>
+
+    </div>
+
+    {{ block.super }}
+    
+{% endblock %}
+
+{% block extrajs %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const filterPanel = document.getElementById('changelist-filter');
+    if (!filterPanel) return;
+
+    const btn = document.createElement('button');
+    btn.className = 'filter-toggle-btn';
+    btn.title = 'Toggle Filter';
+    btn.type = 'button';
+    btn.innerHTML = '🔍';
+    document.body.appendChild(btn);
+
+    const isHidden = localStorage.getItem('adminFilterHidden') === 'true';
+    if (isHidden) {
+        filterPanel.classList.add('filter-hidden');
+        btn.style.opacity = '0.6';
+    }
+
+    btn.addEventListener('click', function() {
+        const hidden = filterPanel.classList.toggle('filter-hidden');
+        localStorage.setItem('adminFilterHidden', hidden);
+        btn.style.opacity = hidden ? '0.6' : '1';
+    });
+});
+</script>
+{% endblock %}
