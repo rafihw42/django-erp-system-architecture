@@ -311,4 +311,4 @@ Access the admin panel at `http://localhost:8000/admin/` or from other devices o
 
 ---
 
-*Built as a commissioned project for a paint distribution business in Central Java, Indonesia.*
+*Built as a commissioned project for a paint distribution business in West Java, Indonesia.*
