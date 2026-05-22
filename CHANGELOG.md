@@ -4,6 +4,31 @@ Semua perubahan penting pada proyek ini akan didokumentasikan di file ini.
 
 ---
 
+## [2026-05-22] — Fitur Baru: Dashboard Analisis Penjualan & Visualisasi Data
+
+### 📊 Fitur Dashboard Baru
+- **Visualisasi Chart.js**: Menampilkan tren penjualan bulanan (line chart) dan kontribusi penjualan top 5 customer (doughnut chart).
+- **KPI Ringkasan Utama**: Kartu indikator kinerja utama seperti Pendapatan Total (YTD), Customer Aktif, Rata-rata Nilai Order (AOV), dan Top Customer.
+- **Matriks Heatmap Bulanan**: Tabel dinamis bulanan customer dengan pewarnaan heatmap berdasarkan volume penjualan untuk memudahkan analisis visual.
+- **Ekspor CSV**: Fitur ekspor langsung data matriks penjualan bulanan customer ke file CSV.
+- **Integrasi Admin Panel**: Tautan navigasi langsung ke dashboard di bagian atas header admin Django.
+
+---
+
+## [2026-05-20] — Fitur Baru: Ready Mix / Moving (Pemindahan) dengan Multi-Output
+
+### ⚙️ Fitur & Model Baru
+- **Jenis Transaksi (Ready Mix / Moving):** Menambahkan pilihan jenis transaksi agar pengguna bisa memilih antara pencampuran produk (`Ready Mix`) atau pemindahan stok (`Moving`).
+- **Multi-Output (Produk Hasil Lebih dari Satu):** Mendukung pembuatan/pemindahan lebih dari satu produk hasil sekaligus dalam satu sesi transaksi.
+- **Relasi Database Baru:** Membuat model `ReadyMixOutput` untuk mendukung relasi one-to-many antara satu transaksi dengan banyak produk hasil.
+- **Migrasi Data Aman:** Memindahkan data produk hasil pada transaksi `ReadyMix` lama secara otomatis ke dalam tabel baru `ReadyMixOutput` tanpa kehilangan data historis.
+- **Tampilan Dinamis Form:** Form `/readymix/new/` kini secara dinamis merubah istilah label ("Produk Hasil/Bahan Dipakai" vs "Produk Tujuan/Produk Sumber") berdasarkan jenis transaksi yang dipilih.
+
+### 💼 Admin Panel
+- Menambahkan inline detail `ReadyMixOutputInline` untuk menampilkan produk hasil di halaman riwayat transaksi.
+- Memperbarui pencarian admin agar dapat mendeteksi barang hasil di dalam tabel baru.
+- Memperbarui kolom list riwayat agar menampilkan ringkasan semua produk hasil dan bahan secara lengkap.
+
 ## [2026-05-18] — Perbaikan UI/UX Admin & Cetakan Nota/Surat Jalan
 
 ### 💅 Admin UI Enhancements

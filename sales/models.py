@@ -529,24 +529,40 @@ class Cashflow(models.Model):
         return f"{self.tanggal} - {self.nama_transaksi}"
 
 class ReadyMix(models.Model):
-    tanggal = models.DateField(default=datetime.date.today)
-    output_product = models.ForeignKey(
-        'Product', 
-        on_delete=models.RESTRICT, 
-        related_name='readymix_outputs',
-        verbose_name='Produk Hasil'
+    JENIS_CHOICES = [
+        ('Ready Mix', 'Ready Mix'),
+        ('Moving', 'Moving / Pemindahan'),
+    ]
+    jenis = models.CharField(
+        max_length=20, 
+        choices=JENIS_CHOICES, 
+        default='Ready Mix',
+        verbose_name='Jenis Transaksi'
     )
-    output_qty = models.PositiveIntegerField(verbose_name='Jumlah Hasil')
+    tanggal = models.DateField(default=datetime.date.today)
     catatan = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
-        verbose_name = 'Ready Mix'
-        verbose_name_plural = 'Ready Mix'
+        verbose_name = 'Ready Mix / Moving'
+        verbose_name_plural = 'Ready Mix / Moving'
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"Mix {self.tanggal} → {self.output_product.nama_barang} ×{self.output_qty}"
+        return f"{self.jenis} {self.tanggal}"
+
+class ReadyMixOutput(models.Model):
+    ready_mix = models.ForeignKey(ReadyMix, on_delete=models.CASCADE, related_name='outputs')
+    product = models.ForeignKey(
+        'Product', 
+        on_delete=models.RESTRICT, 
+        related_name='readymix_outputs_items',
+        verbose_name='Produk Hasil'
+    )
+    qty = models.PositiveIntegerField(verbose_name='Jumlah Hasil')
+
+    def __str__(self):
+        return f"{self.product.nama_barang} ×{self.qty}"
 
 class ReadyMixIngredient(models.Model):
     ready_mix = models.ForeignKey(ReadyMix, on_delete=models.CASCADE, related_name='ingredients')

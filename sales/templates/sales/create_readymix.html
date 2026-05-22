@@ -3,7 +3,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Ready Mix — Racik Produk</title>
+    <title>Ready Mix / Moving — Proses Stok</title>
     
     <!-- jQuery and Select2 for Searchable Dropdowns -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -16,7 +16,7 @@
         h2 { margin-top: 0; border-bottom: 2px solid #333; padding-bottom: 10px; }
         
         /* Header Form Grid */
-        .header-form { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; background: #f8f9fa; padding: 20px; border-radius: 6px; }
+        .header-form { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 30px; background: #f8f9fa; padding: 20px; border-radius: 6px; }
         .form-group { display: flex; flex-direction: column; }
         label { font-weight: bold; margin-bottom: 5px; font-size: 14px; }
         .form-control { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
@@ -33,35 +33,32 @@
         /* Dynamic Table */
         table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
         th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
-        th { background-color: #856404; color: white; }
+        #outputs-table th { background-color: #28a745; color: white; }
+        #ingredients-table th { background-color: #856404; color: white; }
         .text-right { text-align: right; }
         
         /* Buttons */
         .btn { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; }
         .btn-tambah { background-color: #856404; color: white; margin-bottom: 15px; }
         .btn-tambah:hover { background-color: #6d5303; }
+        .btn-tambah-output { background-color: #28a745; color: white; margin-bottom: 15px; }
+        .btn-tambah-output:hover { background-color: #1e7e34; }
         .btn-hapus { background-color: #dc3545; color: white; padding: 6px 10px; font-size: 12px; }
         .btn-hapus:hover { background-color: #a71d2a; }
-        .btn-simpan { background-color: #28a745; color: white; width: 100%; font-size: 16px; padding: 15px; margin-top: 20px; }
-        .btn-simpan:hover { background-color: #1e7e34; }
+        .btn-simpan { background-color: #007bff; color: white; width: 100%; font-size: 16px; padding: 15px; margin-top: 20px; }
+        .btn-simpan:hover { background-color: #0056b3; }
 
         /* Messages */
         .messages { list-style: none; padding: 0; margin-bottom: 20px; }
         .messages li { padding: 12px 15px; border-radius: 4px; margin-bottom: 8px; font-weight: bold; }
         .messages .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .messages .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-
-        /* Output Box */
-        .output-box { 
-            background: #d4edda; padding: 20px; border-radius: 6px; border: 1px solid #c3e6cb; 
-            display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 30px;
-        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>🧪 Ready Mix — Racik Produk</h2>
+    <h2 id="page-title">🧪 Ready Mix — Racik Produk</h2>
 
     <!-- Flash Messages -->
     {% if messages %}
@@ -75,39 +72,45 @@
     <form method="POST" action="{% url 'create_readymix' %}">
         {% csrf_token %}
         
-        <!-- DATE + NOTES -->
+        <!-- TYPE + DATE + NOTES -->
         <div class="header-form">
+            <div class="form-group">
+                <label for="jenis">⚙️ Jenis Transaksi</label>
+                <select name="jenis" id="jenis" class="form-control" onchange="updateUIForJenis()" required>
+                    <option value="Ready Mix">Ready Mix (Racik Produk)</option>
+                    <option value="Moving">Moving (Pemindahan / Transfer)</option>
+                </select>
+            </div>
             <div class="form-group">
                 <label for="tanggal">📅 Tanggal</label>
                 <input type="date" name="tanggal" id="tanggal" class="form-control" required>
             </div>
             <div class="form-group">
                 <label for="catatan">📝 Catatan (Opsional)</label>
-                <textarea name="catatan" id="catatan" class="form-control" placeholder="Contoh: Pesanan khusus toko ABC"></textarea>
+                <textarea name="catatan" id="catatan" class="form-control" placeholder="Contoh: Pemindahan ke cabang/mix khusus"></textarea>
             </div>
         </div>
 
         <!-- OUTPUT PRODUCT SECTION -->
-        <div class="section-header section-output">📦 Produk Hasil (Output)</div>
-        <div class="output-box">
-            <div class="form-group">
-                <label>Produk yang Dihasilkan</label>
-                <select name="output_product" id="output-product" class="form-control" required>
-                    <option value="">-- Pilih Produk Hasil --</option>
-                    {% for p in products %}
-                        <option value="{{ p.kode_barang }}">{{ p.kode_barang }} - {{ p.nama_barang }} (Stok: {{ p.stok_saat_ini }})</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Jumlah yang Dihasilkan</label>
-                <input type="number" name="output_qty" class="form-control" min="1" placeholder="0" required>
-            </div>
-        </div>
+        <div class="section-header section-output" id="output-section-header">📦 Produk Hasil (Output)</div>
+        <button type="button" class="btn btn-tambah-output" onclick="addOutputRow()">+ Tambah Produk Hasil</button>
+        
+        <table id="outputs-table">
+            <thead>
+                <tr>
+                    <th width="55%">Nama Produk Hasil</th>
+                    <th width="25%">Jumlah Hasil</th>
+                    <th width="20%">Aksi</th>
+                </tr>
+            </thead>
+            <tbody id="outputs-body">
+                <!-- JavaScript will inject rows here -->
+            </tbody>
+        </table>
 
         <!-- INGREDIENTS SECTION -->
-        <div class="section-header section-input">🧪 Bahan yang Dipakai (Input)</div>
-        <button type="button" class="btn btn-tambah" onclick="addRow()">+ Tambah Bahan</button>
+        <div class="section-header section-input" id="input-section-header">🧪 Bahan yang Dipakai (Input)</div>
+        <button type="button" class="btn btn-tambah" onclick="addIngredientRow()">+ Tambah Bahan</button>
         
         <table id="ingredients-table">
             <thead>
@@ -122,12 +125,12 @@
             </tbody>
         </table>
 
-        <button type="submit" class="btn btn-simpan">🧪 Proses Ready Mix & Update Stok</button>
+        <button type="submit" id="submit-btn" class="btn btn-simpan">🧪 Proses Ready Mix & Update Stok</button>
     </form>
 </div>
 
-<!-- TEMPLATE ROW (Hidden) -->
-<template id="row-template">
+<!-- TEMPLATE INPUT ROW (Hidden) -->
+<template id="ingredient-row-template">
     <tr>
         <td>
             <select name="ingredient_product[]" class="form-control select2-ingredient" required>
@@ -146,17 +149,53 @@
     </tr>
 </template>
 
+<!-- TEMPLATE OUTPUT ROW (Hidden) -->
+<template id="output-row-template">
+    <tr>
+        <td>
+            <select name="output_product[]" class="form-control select2-output" required>
+                <option value="">-- Pilih Produk Hasil --</option>
+                {% for p in products %}
+                    <option value="{{ p.kode_barang }}">{{ p.kode_barang }} - {{ p.nama_barang }} (Stok: {{ p.stok_saat_ini }})</option>
+                {% endfor %}
+            </select>
+        </td>
+        <td>
+            <input type="number" name="output_qty[]" class="form-control" min="1" placeholder="0" required>
+        </td>
+        <td style="vertical-align: middle; text-align: center;">
+            <button type="button" class="btn btn-hapus" onclick="removeRow(this)">✕</button>
+        </td>
+    </tr>
+</template>
+
 <script>
-function addRow() {
-    const template = document.getElementById('row-template');
+function addIngredientRow() {
+    const template = document.getElementById('ingredient-row-template');
     const tbody = document.getElementById('ingredients-body');
     const clone = template.content.cloneNode(true);
     tbody.appendChild(clone);
 
     // Apply Select2 to the new row's dropdown
     const newRow = tbody.lastElementChild;
+    const placeholderText = document.getElementById('jenis').value === 'Ready Mix' ? "-- Cari / Pilih Bahan --" : "-- Cari / Pilih Produk Sumber --";
     $(newRow).find('.select2-ingredient').select2({
-        placeholder: "-- Cari / Pilih Bahan --",
+        placeholder: placeholderText,
+        width: '100%'
+    });
+}
+
+function addOutputRow() {
+    const template = document.getElementById('output-row-template');
+    const tbody = document.getElementById('outputs-body');
+    const clone = template.content.cloneNode(true);
+    tbody.appendChild(clone);
+
+    // Apply Select2 to the new row's dropdown
+    const newRow = tbody.lastElementChild;
+    const placeholderText = document.getElementById('jenis').value === 'Ready Mix' ? "-- Cari / Pilih Produk Hasil --" : "-- Cari / Pilih Produk Tujuan --";
+    $(newRow).find('.select2-output').select2({
+        placeholder: placeholderText,
         width: '100%'
     });
 }
@@ -165,19 +204,54 @@ function removeRow(button) {
     button.closest('tr').remove();
 }
 
-$(document).ready(function() {
-    // Apply Select2 to the output product dropdown
-    $('#output-product').select2({
-        placeholder: "-- Cari / Pilih Produk Hasil --",
-        width: '100%'
-    });
+function updateUIForJenis() {
+    const jenis = document.getElementById('jenis').value;
+    
+    // Elements to update
+    const titleElement = document.getElementById('page-title');
+    const outputHeader = document.getElementById('output-section-header');
+    const inputHeader = document.getElementById('input-section-header');
+    const submitBtn = document.getElementById('submit-btn');
+    const addOutputBtn = document.querySelector('.btn-tambah-output');
+    const addIngredientBtn = document.querySelector('.btn-tambah');
 
+    if (jenis === 'Ready Mix') {
+        titleElement.textContent = '🧪 Ready Mix — Racik Produk';
+        outputHeader.textContent = '📦 Produk Hasil (Output)';
+        inputHeader.textContent = '🧪 Bahan yang Dipakai (Input)';
+        submitBtn.innerHTML = '🧪 Proses Ready Mix & Update Stok';
+        addOutputBtn.innerHTML = '+ Tambah Produk Hasil';
+        addIngredientBtn.innerHTML = '+ Tambah Bahan';
+        
+        // Update table headers
+        $('#outputs-table th:first').text('Nama Produk Hasil');
+        $('#outputs-table th:nth-child(2)').text('Jumlah Hasil');
+        $('#ingredients-table th:first').text('Nama Bahan');
+        $('#ingredients-table th:nth-child(2)').text('Jumlah Dipakai');
+    } else {
+        titleElement.textContent = '📦 Pemindahan (Moving) Produk';
+        outputHeader.textContent = '📦 Produk Tujuan (Target/Output)';
+        inputHeader.textContent = '📦 Produk Sumber (Source/Input)';
+        submitBtn.innerHTML = '📦 Proses Pemindahan (Moving) & Update Stok';
+        addOutputBtn.innerHTML = '+ Tambah Produk Tujuan';
+        addIngredientBtn.innerHTML = '+ Tambah Produk Sumber';
+
+        // Update table headers
+        $('#outputs-table th:first').text('Nama Produk Tujuan');
+        $('#outputs-table th:nth-child(2)').text('Jumlah Tujuan');
+        $('#ingredients-table th:first').text('Nama Produk Sumber');
+        $('#ingredients-table th:nth-child(2)').text('Jumlah Sumber');
+    }
+}
+
+$(document).ready(function() {
     // Set default date to today
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('tanggal').value = today;
 
-    // Add the first blank ingredient row
-    addRow();
+    // Add the first blank rows
+    addOutputRow();
+    addIngredientRow();
 });
 </script>
 

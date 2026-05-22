@@ -2,7 +2,7 @@ from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponseNotAllowed
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db.models import Sum, Count, F
-from .models import Invoice, Product, Customer, StockTransaction, Supplier, RestockInvoice, RestockItem, ReadyMix, ReadyMixIngredient
+from .models import Invoice, Product, Customer, StockTransaction, Supplier, RestockInvoice, RestockItem, ReadyMix, ReadyMixIngredient, ReadyMixOutput
 
 def print_nota(request, nomor_faktur):
     invoice = get_object_or_404(Invoice, nomor_faktur=nomor_faktur)
@@ -232,36 +232,62 @@ def print_surat_jalan(request, nomor_faktur):
     return render(request, 'sales/surat_jalan.html', context)
 
 
-# --- READY MIX ---
+# --- READY MIX / MOVING ---
 @staff_member_required
 def create_readymix(request):
     if request.method == 'POST':
         from django.db import transaction as db_transaction
 
+        jenis = request.POST.get('jenis', 'Ready Mix')
         tanggal = request.POST.get('tanggal')
-        output_kode = request.POST.get('output_product')
-        output_qty = int(request.POST.get('output_qty', 0))
         catatan = request.POST.get('catatan', '')
+
+        output_kodes = request.POST.getlist('output_product[]')
+        output_qtys = request.POST.getlist('output_qty[]')
 
         ingredient_kodes = request.POST.getlist('ingredient_product[]')
         ingredient_qtys = request.POST.getlist('ingredient_qty[]')
 
-        # Validate: at least 1 ingredient
-        if not ingredient_kodes or not any(k.strip() for k in ingredient_kodes):
-            messages.error(request, 'Harus ada minimal 1 bahan!')
-            return redirect('create_readymix')
+        # Clean and validate output list
+        cleaned_outputs = []
+        for i in range(len(output_kodes)):
+            kode = output_kodes[i].strip()
+            if not kode:
+                continue
+            try:
+                qty = int(output_qtys[i])
+            except (ValueError, TypeError):
+                qty = 0
+            if qty <= 0:
+                messages.error(request, 'Jumlah hasil produk harus lebih dari 0!')
+                return redirect('create_readymix')
+            cleaned_outputs.append((kode, qty))
 
-        # Validate: output qty must be positive
-        if output_qty <= 0:
-            messages.error(request, 'Jumlah hasil harus lebih dari 0!')
-            return redirect('create_readymix')
-
-        # Validate stock availability for each ingredient
+        # Clean and validate input list
+        cleaned_ingredients = []
         for i in range(len(ingredient_kodes)):
             kode = ingredient_kodes[i].strip()
             if not kode:
                 continue
-            qty = int(ingredient_qtys[i])
+            try:
+                qty = int(ingredient_qtys[i])
+            except (ValueError, TypeError):
+                qty = 0
+            if qty <= 0:
+                messages.error(request, 'Jumlah bahan harus lebih dari 0!')
+                return redirect('create_readymix')
+            cleaned_ingredients.append((kode, qty))
+
+        if not cleaned_outputs:
+            messages.error(request, 'Harus ada minimal 1 produk hasil (output)!')
+            return redirect('create_readymix')
+
+        if not cleaned_ingredients:
+            messages.error(request, 'Harus ada minimal 1 bahan (input)!')
+            return redirect('create_readymix')
+
+        # Validate stock availability for each ingredient
+        for kode, qty in cleaned_ingredients:
             product = Product.objects.get(kode_barang=kode)
             if product.stok_saat_ini < qty:
                 messages.error(
@@ -271,64 +297,69 @@ def create_readymix(request):
                 )
                 return redirect('create_readymix')
 
-        # All validations passed — process the mix inside a transaction
+        # All validations passed — process inside a transaction
         with db_transaction.atomic():
-            output_product = Product.objects.get(kode_barang=output_kode)
-
             ready_mix = ReadyMix.objects.create(
+                jenis=jenis,
                 tanggal=tanggal,
-                output_product=output_product,
-                output_qty=output_qty,
                 catatan=catatan
             )
 
-            # Build ingredient summary for the reference text
+            # Deduct each ingredient (Input)
             ingredient_names = []
-
-            # Deduct each ingredient
-            for i in range(len(ingredient_kodes)):
-                kode = ingredient_kodes[i].strip()
-                if not kode:
-                    continue
-                qty = int(ingredient_qtys[i])
+            for kode, qty in cleaned_ingredients:
                 ingredient = Product.objects.get(kode_barang=kode)
-
                 ReadyMixIngredient.objects.create(
                     ready_mix=ready_mix,
                     product=ingredient,
                     qty=qty
                 )
-
                 # Deduct stock atomically
                 Product.objects.filter(pk=ingredient.pk).update(
                     stok_saat_ini=F('stok_saat_ini') - qty
                 )
+                ingredient_names.append(f"{ingredient.nama_barang} ×{qty}")
 
-                # Log the OUT transaction
+            # Add each output product (Output)
+            output_names = []
+            for kode, qty in cleaned_outputs:
+                output_product = Product.objects.get(kode_barang=kode)
+                ReadyMixOutput.objects.create(
+                    ready_mix=ready_mix,
+                    product=output_product,
+                    qty=qty
+                )
+                # Add stock atomically
+                Product.objects.filter(pk=output_product.pk).update(
+                    stok_saat_ini=F('stok_saat_ini') + qty
+                )
+                output_names.append(f"{output_product.nama_barang} ×{qty}")
+
+            # Build summaries
+            outputs_summary_text = ", ".join(output_names)
+            ingredients_summary_text = ", ".join(ingredient_names)
+
+            # Log OUT transactions for ingredients
+            for kode, qty in cleaned_ingredients:
+                ingredient = Product.objects.get(kode_barang=kode)
                 StockTransaction.objects.create(
                     product=ingredient,
                     transaction_type='OUT',
                     qty=qty,
-                    reference=f"Ready Mix → {output_product.nama_barang}"
+                    reference=f"{jenis} → {outputs_summary_text}"
                 )
 
-                ingredient_names.append(f"{ingredient.nama_barang} ×{qty}")
+            # Log IN transactions for outputs
+            for kode, qty in cleaned_outputs:
+                output_product = Product.objects.get(kode_barang=kode)
+                StockTransaction.objects.create(
+                    product=output_product,
+                    transaction_type='IN',
+                    qty=qty,
+                    reference=f"{jenis} dari: {ingredients_summary_text}"
+                )
 
-            # Add output product stock
-            Product.objects.filter(pk=output_product.pk).update(
-                stok_saat_ini=F('stok_saat_ini') + output_qty
-            )
-
-            # Log the IN transaction
-            bahan_text = ", ".join(ingredient_names)
-            StockTransaction.objects.create(
-                product=output_product,
-                transaction_type='IN',
-                qty=output_qty,
-                reference=f"Ready Mix dari: {bahan_text}"
-            )
-
-        messages.success(request, f'✅ Ready Mix berhasil! {output_product.nama_barang} ×{output_qty} ditambahkan ke stok.')
+        messages.success(request, f'✅ Proses {jenis} berhasil! Stok telah diperbarui.')
         return redirect('create_readymix')
 
     # GET — render the form
@@ -337,3 +368,135 @@ def create_readymix(request):
         'products': products
     }
     return render(request, 'sales/create_readymix.html', context)
+
+@staff_member_required
+def dashboard(request):
+    years = Invoice.objects.dates('tanggal', 'year', order='DESC')
+    year_list = [y.year for y in years]
+    if not year_list:
+        import datetime
+        year_list = [datetime.date.today().year]
+    
+    wilayah_list = list(Customer.objects.values_list('wilayah', flat=True).distinct())
+    wilayah_list = sorted([w for w in wilayah_list if w])
+    
+    sales_list = list(Invoice.objects.values_list('sales', flat=True).distinct())
+    sales_list = sorted([s for s in sales_list if s])
+
+    context = {
+        'years': year_list,
+        'wilayah_list': wilayah_list,
+        'sales_list': sales_list,
+    }
+    return render(request, 'sales/dashboard.html', context)
+
+@staff_member_required
+def dashboard_data_api(request):
+    import datetime
+    selected_year = int(request.GET.get('year', datetime.date.today().year))
+    filter_wilayah = request.GET.get('wilayah', '').strip()
+    filter_sales = request.GET.get('sales', '').strip()
+
+    # 1. Fetch all customers (filtered by wilayah if set)
+    customers = Customer.objects.all()
+    if filter_wilayah:
+        customers = customers.filter(wilayah__iexact=filter_wilayah)
+
+    # Initialize matrix structure for all matching customers
+    matrix_dict = {}
+    for cust in customers:
+        matrix_dict[cust.kode_cust] = {
+            'customer_id': cust.kode_cust,
+            'customer_name': cust.nama_cust,
+            'months': [0.0] * 12,
+            'total_ytd': 0.0
+        }
+
+    # 2. Fetch invoices and filter
+    invoices = Invoice.objects.filter(tanggal__year=selected_year).select_related('customer')
+    if filter_wilayah:
+        invoices = invoices.filter(customer__wilayah__iexact=filter_wilayah)
+    if filter_sales:
+        invoices = invoices.filter(sales=filter_sales)
+
+    invoice_pks = [inv.nomor_faktur for inv in invoices]
+    
+    from collections import defaultdict
+    items_by_invoice = defaultdict(list)
+    
+    from .models import InvoiceItem
+    if invoice_pks:
+        items = InvoiceItem.objects.filter(invoice_id__in=invoice_pks)
+        for item in items:
+            items_by_invoice[item.invoice_id].append(item)
+
+    total_revenue_ytd = 0.0
+    active_customers = set()
+    total_invoices_count = 0
+    
+    monthly_sales_trend = defaultdict(float)
+    
+    for inv in invoices:
+        inv_items = items_by_invoice[inv.nomor_faktur]
+        subtotal = sum(item.subtotal for item in inv_items)
+        diskon = subtotal * (inv.diskon_persen / 100.0)
+        setelah_diskon = subtotal - diskon
+        ppn = setelah_diskon * (inv.ppn_persen / 100.0)
+        grand_total = setelah_diskon + ppn
+        
+        month = inv.tanggal.month
+        cust_id = inv.customer_id
+        
+        if cust_id in matrix_dict:
+            matrix_dict[cust_id]['months'][month-1] += grand_total
+            matrix_dict[cust_id]['total_ytd'] += grand_total
+        
+        total_revenue_ytd += grand_total
+        active_customers.add(cust_id)
+        total_invoices_count += 1
+        
+        monthly_sales_trend[month] += grand_total
+
+    # Convert dictionary to list and sort by total_ytd descending
+    matrix_data = list(matrix_dict.values())
+    matrix_data.sort(key=lambda x: (-x['total_ytd'], x['customer_name']))
+
+    # Top customer and chart calculation (only using customers with actual sales)
+    actual_sales_customers = [x for x in matrix_data if x['total_ytd'] > 0]
+    top_customer_name = "-"
+    top_customer_val = 0.0
+    if actual_sales_customers:
+        top_customer_name = actual_sales_customers[0]['customer_name']
+        top_customer_val = actual_sales_customers[0]['total_ytd']
+
+    aov = total_revenue_ytd / total_invoices_count if total_invoices_count > 0 else 0.0
+
+    trend_data = [monthly_sales_trend[m] for m in range(1, 13)]
+
+    top_customers_chart = []
+    for row in actual_sales_customers[:5]:
+        top_customers_chart.append({
+            'name': row['customer_name'],
+            'value': row['total_ytd']
+        })
+
+    other_total = sum(row['total_ytd'] for row in actual_sales_customers[5:])
+    if other_total > 0:
+        top_customers_chart.append({
+            'name': 'Lainnya',
+            'value': other_total
+        })
+
+    response_data = {
+        'kpis': {
+            'total_revenue_ytd': total_revenue_ytd,
+            'active_customers': len(active_customers),
+            'aov': aov,
+            'top_customer_name': top_customer_name,
+            'top_customer_val': top_customer_val,
+        },
+        'trend_data': trend_data,
+        'top_customers': top_customers_chart,
+        'matrix_table': matrix_data,
+    }
+    return JsonResponse(response_data)

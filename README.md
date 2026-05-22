@@ -43,7 +43,7 @@ graph TD
 
     subgraph App_Layer["Application Layer - Django"]
         C["Django Admin - Custom UI"]
-        D["Custom Views - Print & ReadyMix"]
+        D["Custom Views - Print & ReadyMix/Moving"]
         E["Django ORM"]
     end
 
@@ -51,7 +51,7 @@ graph TD
         F["Invoice.save - Auto-numbering + Due Date"]
         G["InvoiceItem.save - Atomic F() stock deduction"]
         H["Product.save - Auto-category extraction"]
-        I["ReadyMix View - transaction.atomic"]
+        I["ReadyMix/Moving View - transaction.atomic"]
     end
 
     subgraph Data_Layer["Data Layer"]
@@ -138,14 +138,20 @@ erDiagram
 
     ReadyMix {
         int id PK
-        string output_product
-        int output_qty
+        string jenis "Ready Mix / Moving"
+        date tanggal
+        text catatan
         datetime created_at
+    }
+
+    ReadyMixOutput {
+        int id PK
+        int qty
     }
 
     ReadyMixIngredient {
         int id PK
-        int qty_used
+        int qty
     }
 
     Customer ||--o{ Invoice : "places"
@@ -155,8 +161,9 @@ erDiagram
     Invoice ||--|| Cashflow : "syncs to"
     RestockInvoice ||--o{ StockTransaction : "triggers IN"
     ReadyMix ||--|{ ReadyMixIngredient : "uses"
+    ReadyMix ||--|{ ReadyMixOutput : "produces"
     ReadyMixIngredient }o--|| Product : "deducts from"
-    ReadyMix }o--|| Product : "adds to"
+    ReadyMixOutput }o--|| Product : "adds to"
     Product ||--o{ StockTransaction : "tracked by"
 ```
 
@@ -189,8 +196,8 @@ Product.objects.filter(pk=self.product.pk).update(
 
 ---
 
-### 2. Manufacturing Module — Ready Mix
-The Ready Mix feature allows staff to combine existing stock components to manufacture a new finished product. The entire operation is wrapped in `transaction.atomic()` so if any step fails (e.g., insufficient stock for one ingredient), **all stock changes are rolled back** completely.
+### 2. Manufacturing & Transfer Module — Ready Mix / Moving
+The Ready Mix / Moving feature allows staff to atomically either mix existing paint components to manufacture finished paint products (Ready Mix) or transfer inventory between products (Moving). The entire operation is wrapped in `transaction.atomic()` so if any step fails (e.g., insufficient stock for one of the source components), **all stock changes are rolled back** completely.
 
 ```python
 # sales/views.py — create_readymix()
@@ -201,10 +208,11 @@ with transaction.atomic():
         )
         StockTransaction.objects.create(type='OUT', ...)
 
-    Product.objects.filter(pk=output_product.pk).update(
-        stok_saat_ini=F('stok_saat_ini') + output_qty
-    )
-    StockTransaction.objects.create(type='IN', ...)
+    for output in outputs:
+        Product.objects.filter(pk=output.pk).update(
+            stok_saat_ini=F('stok_saat_ini') + qty_produced
+        )
+        StockTransaction.objects.create(type='IN', ...)
 ```
 
 ---
@@ -251,6 +259,14 @@ Cashflow.objects.update_or_create(
 
 ---
 
+### 6. Sales Dashboard & Analytical Data Matrix
+To help management visualize their business health, a dedicated interactive dashboard was built featuring:
+- **Client-Side Rendering with Chart.js**: Feeds from an authenticated JSON API endpoint (`/api/dashboard-data/`) to load trends dynamically.
+- **Dynamic CSS Heatmapping**: Evaluates each customer's monthly sales value and dynamically calculates a background color opacity to create a visual heat map of client purchasing activity.
+- **Optimized SQL Retrieval**: Aggregates and pre-calculates sales data at database-level (with `select_related`) to prevent N+1 query performance degradation.
+
+---
+
 ## ✨ Feature Overview
 
 | Feature | Description |
@@ -258,6 +274,7 @@ Cashflow.objects.update_or_create(
 | **Invoice Management** | Create, edit, and print invoices with auto-generated sequential numbering (e.g., `CK-JT2605001`) |
 | **Inventory Tracking** | Real-time stock levels with full audit trail via `StockTransaction` ledger |
 | **Ready Mix Manufacturing** | Combine stock components atomically to produce new products |
+| **Sales Dashboard** | Interactive chart-based dashboard displaying YTD revenue, active customers, AOV, monthly trends, and a customer heatmap with CSV export |
 | **Restock Invoices** | Track purchase orders from suppliers, automatically incrementing stock |
 | **Customer Profiles** | Per-customer payment terms, invoice history, and running total |
 | **Cashflow Dashboard** | Automatic income tracking per invoice, with Lunas/Belum Lunas status |
@@ -275,7 +292,7 @@ Cashflow.objects.update_or_create(
 | **Backend Framework** | Django 4.x |
 | **Database** | SQLite (local deployment) |
 | **Admin UI** | Django Admin (heavily customized with custom templates & `Media` CSS) |
-| **Frontend** | Vanilla HTML/CSS/JS, Select2 (searchable dropdowns) |
+| **Frontend** | Vanilla HTML/CSS/JS, Select2, Chart.js |
 | **Print Layout** | CSS `@page` rules, Flexbox (pixel-perfect A5/half-letter output) |
 | **Data Import** | `django-import-export` |
 | **Date Filters** | `django-admin-rangefilter` |

@@ -31,4 +31,6 @@ urlpatterns = [
     path('stock/delete/<int:tx_id>/', views.delete_stock_transaction, name='delete_stock_transaction'),
     path('print-surat-jalan/<str:nomor_faktur>/', views.print_surat_jalan, name='print_surat_jalan'),
     path('readymix/new/', views.create_readymix, name='create_readymix'),
+    path('dashboard/', views.dashboard, name='dashboard'),
+    path('api/dashboard-data/', views.dashboard_data_api, name='dashboard_data_api'),
 ]

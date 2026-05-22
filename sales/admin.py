@@ -398,7 +398,16 @@ class CashflowAdmin(admin.ModelAdmin):
         return response
 
 # --- READY MIX ---
-from .models import ReadyMix, ReadyMixIngredient
+from .models import ReadyMix, ReadyMixIngredient, ReadyMixOutput
+
+class ReadyMixOutputInline(admin.TabularInline):
+    model = ReadyMixOutput
+    extra = 0
+    readonly_fields = ('product', 'qty')
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
 
 class ReadyMixIngredientInline(admin.TabularInline):
     model = ReadyMixIngredient
@@ -411,10 +420,18 @@ class ReadyMixIngredientInline(admin.TabularInline):
 
 @admin.register(ReadyMix)
 class ReadyMixAdmin(admin.ModelAdmin):
-    inlines = [ReadyMixIngredientInline]
-    list_display = ('tanggal', 'output_product', 'output_qty', 'ringkasan_bahan', 'created_at')
-    list_filter = (('tanggal', DateRangeFilter),)
-    search_fields = ('output_product__nama_barang', 'catatan')
+    inlines = [ReadyMixOutputInline, ReadyMixIngredientInline]
+    list_display = ('tanggal', 'jenis', 'ringkasan_hasil', 'ringkasan_bahan', 'created_at')
+    list_filter = ('jenis', ('tanggal', DateRangeFilter))
+    search_fields = ('outputs__product__nama_barang', 'catatan')
+
+    def ringkasan_hasil(self, obj):
+        outputs = obj.outputs.all()
+        if outputs:
+            parts = [f"{out.product.nama_barang} ×{out.qty}" for out in outputs]
+            return ", ".join(parts)
+        return "-"
+    ringkasan_hasil.short_description = "Produk Hasil"
 
     def ringkasan_bahan(self, obj):
         ingredients = obj.ingredients.all()

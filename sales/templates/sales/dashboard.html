@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Dashboard Penjualan — ColorKing</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #417690;
+            --primary-dark: #205067;
+            --accent: #ffc107;
+            --bg-main: #f8fafc;
+            --bg-card: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            padding: 24px;
+            line-height: 1.5;
+        }
+
+        /* Container Layout */
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* Header & Filters */
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .header-title-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-back-admin {
+            display: inline-flex;
+            align-items: center;
+            background-color: var(--primary);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .btn-back-admin:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .dashboard-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary-dark);
+        }
+
+        .filters-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .filter-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .filter-select, .search-input {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 14px;
+            background-color: white;
+            color: var(--text-main);
+            outline: none;
+            min-width: 140px;
+            transition: border-color 0.2s;
+        }
+
+        .filter-select:focus, .search-input:focus {
+            border-color: var(--primary);
+        }
+
+        .search-input {
+            min-width: 240px;
+        }
+
+        /* KPI Cards Grid */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .kpi-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background-color: var(--primary);
+        }
+
+        .kpi-card.accent::before {
+            background-color: var(--accent);
+        }
+
+        .kpi-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .kpi-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-main);
+            word-break: break-all;
+        }
+
+        .kpi-subtext {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        /* Visual Charts Section */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        @media (max-width: 992px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .chart-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-header {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--primary-dark);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        .chart-container {
+            position: relative;
+            flex-grow: 1;
+            min-height: 280px;
+        }
+
+        /* Matrix Table Section */
+        .matrix-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            margin-bottom: 24px;
+        }
+
+        .matrix-title-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .matrix-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--primary-dark);
+        }
+
+        .table-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .btn-export {
+            background-color: #10b981;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-export:hover {
+            background-color: #059669;
+        }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .matrix-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        .matrix-table th {
+            background-color: #f1f5f9;
+            color: var(--primary-dark);
+            font-weight: 600;
+            padding: 10px 12px;
+            border-bottom: 2px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        .matrix-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-main);
+            white-space: nowrap;
+        }
+
+        .matrix-table tbody tr:hover {
+            background-color: #f8fafc;
+        }
+
+        .cust-cell {
+            font-weight: 500;
+            color: var(--primary-dark);
+            position: sticky;
+            left: 0;
+            background-color: inherit;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+            z-index: 1;
+            max-width: 220px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .num-cell {
+            text-align: right;
+            transition: background-color 0.2s;
+        }
+
+        .total-cell {
+            font-weight: 700;
+            text-align: right;
+            background-color: #f8fafc;
+        }
+
+        /* Loading Indicator */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.7);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: 600;
+            color: var(--primary-dark);
+            font-size: 18px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .loading-spinner {
+            border: 4px solid var(--border-color);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-right: 12px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        Memuat Data Dashboard...
+    </div>
+
+    <div class="dashboard-container">
+        <!-- Header -->
+        <div class="dashboard-header">
+            <div class="header-title-area">
+                <a href="/admin/" class="btn-back-admin">⬅ Admin Panel</a>
+                <h1 class="dashboard-title">📊 Dashboard Penjualan</h1>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters-panel">
+            <div class="filter-group">
+                <label for="filter-year">Tahun</label>
+                <select id="filter-year" class="filter-select">
+                    {% for y in years %}
+                        <option value="{{ y }}" {% if forloop.first %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="filter-wilayah">Wilayah</label>
+                <select id="filter-wilayah" class="filter-select">
+                    <option value="">Semua Wilayah</option>
+                    {% for w in wilayah_list %}
+                        <option value="{{ w }}">{{ w }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="filter-sales">Kode Sales</label>
+                <select id="filter-sales" class="filter-select">
+                    <option value="">Semua Sales</option>
+                    {% for s in sales_list %}
+                        <option value="{{ s }}">{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="flex-grow: 1;"></div>
+
+            <div class="filter-group">
+                <label for="search-customer">Cari Customer</label>
+                <input type="text" id="search-customer" class="search-input" placeholder="Ketik nama customer...">
+            </div>
+        </div>
+
+        <!-- KPI Cards Grid -->
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <span class="kpi-label">Pendapatan Total (YTD)</span>
+                <span id="kpi-revenue" class="kpi-value">Rp 0</span>
+                <span class="kpi-subtext" id="kpi-revenue-year">Tahun 2026</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-label">Customer Aktif</span>
+                <span id="kpi-active" class="kpi-value">0</span>
+                <span class="kpi-subtext">Melakukan pembelian</span>
+            </div>
+            <div class="kpi-card accent">
+                <span class="kpi-label">Rata-rata Nilai Order</span>
+                <span id="kpi-aov" class="kpi-value">Rp 0</span>
+                <span class="kpi-subtext">Rata-rata per Faktur</span>
+            </div>
+            <div class="kpi-card accent">
+                <span class="kpi-label">Top Customer YTD</span>
+                <span id="kpi-top-cust" class="kpi-value">-</span>
+                <span id="kpi-top-cust-val" class="kpi-subtext">Rp 0 total pembelian</span>
+            </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="charts-grid">
+            <!-- Line Chart (Trend) -->
+            <div class="chart-card">
+                <div class="chart-header">📈 Tren Penjualan Bulanan (Januari - Desember)</div>
+                <div class="chart-container">
+                    <canvas id="chart-trend"></canvas>
+                </div>
+            </div>
+
+            <!-- Donut Chart (Top Customers Share) -->
+            <div class="chart-card">
+                <div class="chart-header">🍩 Kontribusi Penjualan (Top 5 Customer)</div>
+                <div class="chart-container">
+                    <canvas id="chart-share"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Matrix Table Card -->
+        <div class="matrix-card">
+            <div class="matrix-title-area">
+                <h2 class="matrix-title">📋 Matriks Penjualan Bulanan Customer (Rupiah)</h2>
+                <div class="table-controls">
+                    <button id="btn-export-csv" class="btn-export">📥 Ekspor CSV</button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="matrix-table" id="matrix-table-el">
+                    <thead>
+                        <tr>
+                            <th class="cust-cell">Customer</th>
+                            <th>Jan</th>
+                            <th>Feb</th>
+                            <th>Mar</th>
+                            <th>Apr</th>
+                            <th>Mei</th>
+                            <th>Jun</th>
+                            <th>Jul</th>
+                            <th>Agt</th>
+                            <th>Sep</th>
+                            <th>Okt</th>
+                            <th>Nov</th>
+                            <th>Des</th>
+                            <th class="total-cell">Total YTD</th>
+                        </tr>
+                    </thead>
+                    <tbody id="matrix-table-body">
+                        <!-- Dynamic Rows -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables for charts
+        let chartTrendInstance = null;
+        let chartShareInstance = null;
+        let allData = []; // To store matrix data for searching and exporting
+
+        // Format currency helper
+        function formatRupiah(value) {
+            return new Intl.NumberFormat('id-ID', {
+                style: 'currency',
+                currency: 'IDR',
+                maximumFractionDigits: 0
+            }).format(value);
+        }
+
+        function formatCompact(value) {
+            if (value === 0) return '-';
+            if (value >= 1e9) {
+                return (value / 1e9).toFixed(1) + 'M';
+            }
+            if (value >= 1e6) {
+                return (value / 1e6).toFixed(1) + 'jt';
+            }
+            if (value >= 1e3) {
+                return (value / 1e3).toFixed(0) + 'rb';
+            }
+            return value.toString();
+        }
+
+        // Fetch Dashboard Data
+        function loadDashboardData() {
+            const loadingEl = document.getElementById('loading');
+            loadingEl.classList.add('active');
+
+            const year = document.getElementById('filter-year').value;
+            const wilayah = document.getElementById('filter-wilayah').value;
+            const sales = document.getElementById('filter-sales').value;
+
+            // Update subtext
+            document.getElementById('kpi-revenue-year').textContent = `Tahun ${year}`;
+
+            const url = `/api/dashboard-data/?year=${year}&wilayah=${encodeURIComponent(wilayah)}&sales=${encodeURIComponent(sales)}`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    allData = data.matrix_table;
+
+                    // Update KPIs
+                    document.getElementById('kpi-revenue').textContent = formatRupiah(data.kpis.total_revenue_ytd);
+                    document.getElementById('kpi-active').textContent = data.kpis.active_customers;
+                    document.getElementById('kpi-aov').textContent = formatRupiah(data.kpis.aov);
+                    document.getElementById('kpi-top-cust').textContent = data.kpis.top_customer_name;
+                    document.getElementById('kpi-top-cust-val').textContent = formatRupiah(data.kpis.top_customer_val);
+
+                    // Update Charts
+                    renderTrendChart(data.trend_data);
+                    renderShareChart(data.top_customers);
+
+                    // Render Table Matrix
+                    renderMatrixTable(allData);
+                })
+                .catch(err => {
+                    console.error('Error fetching dashboard data:', err);
+                    alert('Gagal mengambil data dashboard.');
+                })
+                .finally(() => {
+                    loadingEl.classList.remove('active');
+                });
+        }
+
+        // Render Trend Chart
+        function renderTrendChart(trendData) {
+            const ctx = document.getElementById('chart-trend').getContext('2d');
+            if (chartTrendInstance) {
+                chartTrendInstance.destroy();
+            }
+
+            chartTrendInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'],
+                    datasets: [{
+                        label: 'Penjualan Bulanan',
+                        data: trendData,
+                        borderColor: '#417690',
+                        backgroundColor: 'rgba(65, 118, 144, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#205067'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return formatRupiah(context.parsed.y);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: function(value) {
+                                    return formatCompact(value);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Render Share Chart
+        function renderShareChart(shareData) {
+            const ctx = document.getElementById('chart-share').getContext('2d');
+            if (chartShareInstance) {
+                chartShareInstance.destroy();
+            }
+
+            if (shareData.length === 0) {
+                // empty state
+                chartShareInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Tidak Ada Data'],
+                        datasets: [{
+                            data: [1],
+                            backgroundColor: ['#e2e8f0']
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom' } }
+                    }
+                });
+                return;
+            }
+
+            chartShareInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: shareData.map(d => d.name),
+                    datasets: [{
+                        data: shareData.map(d => d.value),
+                        backgroundColor: [
+                            '#205067',
+                            '#417690',
+                            '#10b981',
+                            '#ffc107',
+                            '#ef4444',
+                            '#94a3b8'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ' ' + context.label + ': ' + formatRupiah(context.parsed);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Render Matrix Table with Heatmapping
+        function renderMatrixTable(data) {
+            const tbody = document.getElementById('matrix-table-body');
+            tbody.innerHTML = '';
+
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="14" style="text-align:center; padding: 20px; color: var(--text-muted);">Tidak ada data penjualan untuk filter ini.</td></tr>';
+                return;
+            }
+
+            // Find max cell value for dynamic heatmapping opacity calculation
+            let maxVal = 0.0;
+            data.forEach(row => {
+                row.months.forEach(val => {
+                    if (val > maxVal) maxVal = val;
+                });
+            });
+
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.setAttribute('data-customer-name', row.customer_name.toLowerCase());
+
+                // Customer name cell
+                const tdCust = document.createElement('td');
+                tdCust.className = 'cust-cell';
+                tdCust.textContent = row.customer_name;
+                tdCust.title = row.customer_name;
+                tr.appendChild(tdCust);
+
+                // Months cells (1 to 12)
+                row.months.forEach(val => {
+                    const td = document.createElement('td');
+                    td.className = 'num-cell';
+                    td.textContent = formatCompact(val);
+                    if (val > 0) {
+                        td.title = formatRupiah(val);
+                        // Calculate opacity based on max value
+                        const opacity = maxVal > 0 ? (val / maxVal) * 0.25 : 0.0;
+                        td.style.backgroundColor = `rgba(16, 185, 129, ${opacity})`; // Safe Emerald green heatmap
+                    }
+                    tr.appendChild(td);
+                });
+
+                // Total YTD cell
+                const tdTotal = document.createElement('td');
+                tdTotal.className = 'total-cell';
+                tdTotal.textContent = formatCompact(row.total_ytd);
+                tdTotal.title = formatRupiah(row.total_ytd);
+                tr.appendChild(tdTotal);
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Local search filter
+        document.getElementById('search-customer').addEventListener('input', function(e) {
+            const q = e.target.value.toLowerCase().trim();
+            const rows = document.querySelectorAll('#matrix-table-body tr');
+            rows.forEach(row => {
+                const custName = row.getAttribute('data-customer-name');
+                if (custName) {
+                    if (custName.includes(q)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                }
+            });
+        });
+
+        // Client-side CSV export
+        document.getElementById('btn-export-csv').addEventListener('click', function() {
+            if (allData.length === 0) {
+                alert('Tidak ada data untuk diekspor.');
+                return;
+            }
+
+            const year = document.getElementById('filter-year').value;
+            const headers = ['Nama Customer', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des', 'Total YTD'];
+            
+            let csvContent = '\uFEFF'; // Excel UTF-8 BOM
+            csvContent += headers.join(';') + '\n';
+
+            allData.forEach(row => {
+                const line = [
+                    `"${row.customer_name.replace(/"/g, '""')}"`,
+                    ...row.months.map(val => Math.round(val)),
+                    Math.round(row.total_ytd)
+                ];
+                csvContent += line.join(';') + '\n';
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', `Sales_Dashboard_ColorKing_${year}.csv`);
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        // Bind filter change events to load data dynamically
+        document.getElementById('filter-year').addEventListener('change', loadDashboardData);
+        document.getElementById('filter-wilayah').addEventListener('change', loadDashboardData);
+        document.getElementById('filter-sales').addEventListener('change', loadDashboardData);
+
+        // Initial load on page ready
+        document.addEventListener('DOMContentLoaded', loadDashboardData);
+    </script>
+</body>
+</html>

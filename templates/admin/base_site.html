@@ -1,5 +1,14 @@
 {% extends "admin/base_site.html" %}
 
+{% block branding %}
+<h1 id="site-name">
+    <a href="{% url 'admin:index' %}">ColorKing Admin</a>
+    <span style="margin-left: 20px; font-size: 14px; font-weight: normal;">
+        <a href="/dashboard/" style="color: #ffc107; text-decoration: none; border: 1px solid #ffc107; padding: 4px 10px; border-radius: 4px; transition: all 0.2s;">📊 Dashboard Penjualan</a>
+    </span>
+</h1>
+{% endblock %}
+
 {% block extrahead %}
 {{ block.super }}
 <style>
