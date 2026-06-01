@@ -109,7 +109,15 @@
                     </td>
                     <td>{{ item.qty }}</td>
                     <td>{{ item.customer.nama_cust|default:"-" }}</td>
-                    <td>{{ item.reference }}</td>
+                    <td>
+                        {% if item.reference_url %}
+                            <a href="{{ item.reference_url }}" target="_blank" style="color: #007bff; text-decoration: none; font-weight: bold;">
+                                {% if item.readymix %}{{ item.readymix.jenis }}{% else %}{{ item.reference }}{% endif %}
+                            </a>
+                        {% else %}
+                            {{ item.reference }}
+                        {% endif %}
+                    </td>
                     
                     <td>
                         {% if 'Manual' in item.reference %}

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from import_export import resources
+from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
 from .models import Customer, Product, Invoice, InvoiceItem, Cashflow
 from django.utils.html import format_html 
@@ -20,6 +20,52 @@ class ProductResource(resources.ModelResource):
     class Meta:
         model = Product
         import_id_fields = ('kode_barang',)
+
+# --- Invoice Export Resource ---
+class InvoiceResource(resources.ModelResource):
+    """Defines which columns appear when exporting Invoices to CSV/Excel."""
+
+    nama_customer = fields.Field(
+        column_name='Nama Customer',
+        attribute='customer__nama_cust',
+    )
+    wilayah = fields.Field(
+        column_name='Wilayah',
+        attribute='customer__wilayah',
+    )
+    subtotal = fields.Field(column_name='Subtotal (Rp)')
+    grand_total = fields.Field(column_name='Grand Total (Rp)')
+
+    class Meta:
+        model = Invoice
+        # Explicit field order for the exported file
+        fields = (
+            'nomor_faktur',
+            'tanggal',
+            'tanggal_jatuh_tempo',
+            'nama_customer',
+            'wilayah',
+            'sales',
+            'status_pembayaran',
+            'diskon_persen',
+            'ppn_persen',
+            'subtotal',
+            'grand_total',
+            'nomor_resi',
+        )
+        export_order = fields
+
+    def dehydrate_subtotal(self, invoice):
+        """Calculate subtotal from all items on this invoice."""
+        return sum(item.subtotal for item in invoice.items.all())
+
+    def dehydrate_grand_total(self, invoice):
+        """Calculate grand total after discount and PPN."""
+        subtotal = sum(item.subtotal for item in invoice.items.all())
+        diskon = subtotal * (invoice.diskon_persen / 100)
+        setelah_diskon = subtotal - diskon
+        ppn = setelah_diskon * (invoice.ppn_persen / 100)
+        return int(setelah_diskon + ppn)
 # --------------------------------------------------------------------
 
 class InvoiceItemInline(admin.TabularInline):
@@ -27,9 +73,12 @@ class InvoiceItemInline(admin.TabularInline):
     extra = 1
     autocomplete_fields = ['product']
 
-class InvoiceAdmin(admin.ModelAdmin):
+class InvoiceAdmin(ImportExportModelAdmin):
+    resource_classes = [InvoiceResource]
     inlines = [InvoiceItemInline]
-    list_display = ('nomor_faktur', 'tanggal', 'customer', 'status_pembayaran', 'cetak_nota','cetak_surat_jalan')
+    autocomplete_fields = ['customer']
+    list_display = ('nomor_faktur', 'tanggal', 'customer', 'status_pembayaran', 'sudah_cetak', 'cetak_nota', 'cetak_surat_jalan')
+    list_editable = ('sudah_cetak',)
     list_filter = (
         'status_pembayaran', 
         ('tanggal', DateRangeFilter) # Adds the From-To calendar!
@@ -65,9 +114,6 @@ class InvoiceAdmin(admin.ModelAdmin):
                     response.context_data['summary_title'] = "Total Nilai Faktur"
 
         return response
-    # Ensure all columns are visible on small screens
-    class Media:
-        css = {'all': ('admin/css/invoice_list.css?v=2',)}
 
     def render_change_form(self, request, context, add=False, change=False, form_url='', obj=None):
         context.update({
@@ -95,7 +141,8 @@ class InvoiceAdmin(admin.ModelAdmin):
         )
     cetak_nota.short_description = 'Nota'
     class Media:
-        js = ('sales/js/invoice_math.js',)
+        css = {'all': ('admin/css/invoice_list.css?v=2',)}
+        js = ('sales/js/invoice_math.js', 'sales/js/invoice_admin_autofill.js')
 
     def cetak_surat_jalan(self, obj):
         from django.utils.html import format_html
@@ -155,11 +202,17 @@ class CustomerInvoiceInline(admin.TabularInline):
 class CustomerAdmin(ImportExportModelAdmin):
     resource_classes = [CustomerResource]
     change_list_template = "admin/sales/customer/change_list.html"
-    list_display = ('kode_cust', 'nama_cust', 'riwayat_faktur', 'no_telp', 'wilayah', 'tempo_hari') 
-    list_editable = ('tempo_hari',)
+    list_display = ('kode_cust', 'nama_cust', 'riwayat_faktur', 'no_telp', 'wilayah', 'tempo_hari', 'kode_sales')
+    list_editable = ('tempo_hari', 'kode_sales')
     list_filter = ('wilayah',)
     search_fields = ('kode_cust', 'nama_cust')
-    inlines = [CustomerInvoiceInline] 
+    inlines = [CustomerInvoiceInline]
+
+    # kode_cust is always read-only — it is auto-generated on save()
+    readonly_fields = ('kode_cust',)
+
+    class Media:
+        js = ('sales/js/customer_admin.js',)
 
     def render_change_form(self, request, context, add=False, change=False, form_url='', obj=None):
         context.update({
@@ -213,7 +266,8 @@ class CustomerAdmin(ImportExportModelAdmin):
 
 class ProductAdmin(ImportExportModelAdmin):
     resource_classes = [ProductResource]
-    list_display = ('kode_barang', 'nama_barang', 'kategori', 'harga_jual_rp', 'stok_saat_ini', 'lihat_riwayat')
+    list_display = ('kode_barang', 'nama_barang', 'stok_saat_ini', 'harga_jual_rp', 'harga_beli', 'kategori', 'lihat_riwayat')
+    list_editable = ('harga_beli',)  # Editable directly in the product list
     
     # UPDATE THIS LINE: Now it searches by name AND code
     search_fields = ('nama_barang', 'kode_barang')
@@ -255,8 +309,11 @@ class ProductAdmin(ImportExportModelAdmin):
     def harga_jual_rp(self, obj):
         # Adds commas for thousands, then swaps them to dots for Indonesia
         return f"Rp {obj.harga_jual:,}".replace(',', '.')
-    
-    harga_jual_rp.short_description = "Harga Jual" # Column title
+    harga_jual_rp.short_description = "Harga Jual"
+
+    def harga_beli_rp(self, obj):
+        return f"Rp {obj.harga_beli:,}".replace(',', '.')
+    harga_beli_rp.short_description = "Harga Beli"
     
     def lihat_riwayat(self, obj):
         return format_html(
@@ -282,9 +339,16 @@ class SupplierRestockInline(admin.TabularInline):
     model = RestockInvoice
     extra = 0
     # The columns you want to see in the Supplier profile
-    fields = ('nomor_faktur', 'tanggal', 'tanggal_jatuh_tempo', 'grand_total')
-    readonly_fields = ('nomor_faktur', 'tanggal', 'tanggal_jatuh_tempo', 'grand_total')
+    fields = ('detail_link', 'tanggal', 'tanggal_jatuh_tempo', 'grand_total')
+    readonly_fields = ('detail_link', 'tanggal', 'tanggal_jatuh_tempo', 'grand_total')
     can_delete = False
+
+    def detail_link(self, obj):
+        if obj.pk:
+            url = reverse('admin:sales_restockinvoice_change', args=[obj.pk])
+            return format_html('<a href="{}" target="_blank">{}</a>', url, obj.nomor_faktur)
+        return "-"
+    detail_link.short_description = "Nomor Faktur"
 
     def has_add_permission(self, request, obj=None):
         return False # Prevents adding new invoices directly from the profile
@@ -421,9 +485,18 @@ class ReadyMixIngredientInline(admin.TabularInline):
 @admin.register(ReadyMix)
 class ReadyMixAdmin(admin.ModelAdmin):
     inlines = [ReadyMixOutputInline, ReadyMixIngredientInline]
-    list_display = ('tanggal', 'jenis', 'ringkasan_hasil', 'ringkasan_bahan', 'created_at')
+    list_display = ('tanggal', 'jenis', 'cetak_faktur', 'nomor_faktur', 'ringkasan_hasil', 'ringkasan_bahan', 'created_at')
     list_filter = ('jenis', ('tanggal', DateRangeFilter))
-    search_fields = ('outputs__product__nama_barang', 'catatan')
+    search_fields = ('nomor_faktur', 'outputs__product__nama_barang')
+
+    def cetak_faktur(self, obj):
+        if obj.jenis == 'Ready Mix':
+            return format_html(
+                '<a class="button" style="background-color:#28a745; color:white; padding:4px 8px; border-radius:4px; font-weight:bold; text-decoration:none;" href="/print-readymix/{}/" target="_blank">🖨️ Cetak</a>',
+                obj.pk
+            )
+        return "-"
+    cetak_faktur.short_description = "Cetak"
 
     def ringkasan_hasil(self, obj):
         outputs = obj.outputs.all()
@@ -445,5 +518,5 @@ class ReadyMixAdmin(admin.ModelAdmin):
     def add_view(self, request, form_url='', extra_context=None):
         return HttpResponseRedirect(reverse('create_readymix'))
 
-    def has_delete_permission(self, request, obj=None):
-        return False  # Don't allow deleting mix history
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        return HttpResponseRedirect(reverse('edit_readymix', args=[object_id]))

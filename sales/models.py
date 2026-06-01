@@ -1,4 +1,6 @@
 from django.db import models, transaction
+from django.db.models.signals import pre_delete, post_delete
+from django.dispatch import receiver
 from datetime import timedelta
 from django.utils import timezone
 import datetime
@@ -6,13 +8,59 @@ from django.db.models import F
 from django.core.exceptions import ValidationError
 import re
 
+# --- REGION CONFIGURATION (add new regions here anytime) ---
+WILAYAH_CHOICES = [
+    ('Jawa Tengah', 'Jawa Tengah (JT)'),
+    ('Jawa Barat', 'Jawa Barat (JB)'),
+]
+
+WILAYAH_PREFIX_MAP = {
+    'Jawa Tengah': 'JT',
+    'Jawa Barat': 'JB',
+}
+
+# --- SALES CHOICES (shared by Customer default and Invoice) ---
+SALES_CHOICES = [
+    ('A1', 'A1'),
+    ('A2', 'A2'),
+    ('A3', 'A3'),
+]
+
 class Customer(models.Model):
-    kode_cust = models.CharField(max_length=20, primary_key=True) # e.g., JT-001
+    kode_cust = models.CharField(max_length=20, primary_key=True, blank=True) # e.g., JT-001 — auto-generated
     nama_cust = models.CharField(max_length=200) # e.g., ABADI BANYUMAS
     alamat = models.TextField(blank=True, null=True)
-    wilayah = models.CharField(max_length=100) # e.g., JAWA TENGAH
+    wilayah = models.CharField(max_length=100, choices=WILAYAH_CHOICES) # e.g., Jawa Tengah
     no_telp = models.CharField(max_length=20, blank=True, null=True, help_text="Contoh: 0812-3456-7890")
     tempo_hari = models.IntegerField(default=60, help_text="Batas pembayaran dalam hari (Contoh: 30 untuk 1 bulan, 60 untuk 2 bulan)")
+    kode_sales = models.CharField(
+        max_length=5,
+        choices=SALES_CHOICES,
+        blank=True,
+        null=True,
+        verbose_name="Kode Sales",
+        help_text="Sales yang akan otomatis terisi saat membuat faktur baru untuk customer ini"
+    )
+
+    def save(self, *args, **kwargs):
+        # Auto-generate kode_cust only for brand-new customers
+        if not self.kode_cust:
+            prefix = WILAYAH_PREFIX_MAP.get(self.wilayah, self.wilayah[:2].upper())
+            last = (
+                Customer.objects
+                .filter(kode_cust__startswith=f"{prefix}-")
+                .order_by('-kode_cust')
+                .first()
+            )
+            if last:
+                try:
+                    seq = int(last.kode_cust.split('-')[1]) + 1
+                except (IndexError, ValueError):
+                    seq = 1
+            else:
+                seq = 1
+            self.kode_cust = f"{prefix}-{seq:03d}"
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.nama_cust
@@ -25,7 +73,12 @@ class Product(models.Model):
     kategori = models.CharField(max_length=20, blank=True, null=True, help_text="Terisi otomatis dari Kode Barang (contoh: TH, NC)")
     
     harga_jual = models.IntegerField() # e.g., 72000
+    harga_beli = models.IntegerField(default=10000, help_text="Harga modal dari pabrik (terisi otomatis dari restock terakhir)")
     stok_saat_ini = models.IntegerField(default=0)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['created_at']
     
 
     # --- 1. THE MEMORY FUNCTION (Keep exactly as is) ---
@@ -38,11 +91,12 @@ class Product(models.Model):
     def save(self, *args, **kwargs):
         
         # --- BULLETPROOF CATEGORY EXTRACTOR ---
-        if self.kode_barang:
-            # Grabs the first block of text (e.g., "NC-800" -> "NC", "TH CS" -> "TH")
+        # Only extract if kategori is not already set
+        if self.kode_barang and not self.kategori:
             match = re.search(r'^([A-Za-z]+)', str(self.kode_barang))
             if match:
                 self.kategori = match.group(1).upper()
+
 
         # Determine if this is a brand new product being created
         is_new = self._state.adding
@@ -110,11 +164,8 @@ class Invoice(models.Model):
         ('Belum Lunas', 'Belum Lunas'),
     ]
 
-    SALES_CHOICES = [
-        ('A1', 'A1'),
-        ('A2', 'A2'),
-        ('A3', 'A3'),
-    ]
+    class Meta:
+        ordering = ['-tanggal', '-nomor_faktur']
 
     nomor_faktur = models.CharField(max_length=50, primary_key=True, blank=True, editable=False)
     
@@ -129,11 +180,17 @@ class Invoice(models.Model):
     nomor_resi = models.CharField(max_length=100, blank=True, null=True, help_text="Contoh: JNE - 10293848 atau Supir Budi")
 
     sales = models.CharField(
-        max_length=5, 
-        choices=SALES_CHOICES, 
-        blank=True, 
+        max_length=5,
+        choices=SALES_CHOICES,
+        blank=True,
         null=True,
         verbose_name="Kode Sales")
+
+    sudah_cetak = models.BooleanField(
+        default=False,
+        verbose_name="Sudah Cetak",
+        help_text="Centang jika faktur ini sudah dicetak"
+    )
 
     # --- 4. ADD THIS MAGICAL SAVE RULE ---
     # --- FIX #1: Invoice numbering wrapped in transaction.atomic() for safety ---
@@ -177,11 +234,17 @@ class Invoice(models.Model):
                 # 5. Combine everything! {:03d} forces the number to have 3 digits (001, 002)
                 self.nomor_faktur = f"{prefix}{sequence:03d}"
 
-            # B. EXISTING DUE DATE LOGIC
+            # B. AUTO-FILL SALES FROM CUSTOMER DEFAULT (only for new invoices without a sales code)
+            if not self.sales and self.customer_id:
+                customer_sales = self.customer.kode_sales
+                if customer_sales:
+                    self.sales = customer_sales
+
+            # C. EXISTING DUE DATE LOGIC
             if not self.tanggal_jatuh_tempo and self.customer and self.tanggal:
                 self.tanggal_jatuh_tempo = self.tanggal + timedelta(days=self.customer.tempo_hari)
 
-            # C. SAVE TO DATABASE (inside the atomic block for numbering safety)
+            # D. SAVE TO DATABASE (inside the atomic block for numbering safety)
             super().save(*args, **kwargs)
 
         # D. CASHFLOW SYNC (called here for status/discount changes on existing invoices)
@@ -376,12 +439,51 @@ class StockTransaction(models.Model):
     # Exact date and time it happened
     created_at = models.DateTimeField(default=timezone.now)
 
+    # Link to ReadyMix / Moving (for automatic deletion and stock rollback)
+    readymix = models.ForeignKey(
+        'ReadyMix',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='stock_transactions'
+    )
+
     class Meta:
         # This makes sure the newest transactions show up first
         ordering = ['-created_at']
 
     def __str__(self):
         return f"{self.product.nama_barang} | {self.transaction_type} | Qty: {self.qty}"
+
+    @property
+    def reference_url(self):
+        from django.urls import reverse
+        from .models import RestockInvoice, Invoice
+        import re
+
+        # 1. Ready Mix / Moving transactions
+        if self.readymix_id:
+            return reverse('edit_readymix', args=[self.readymix_id])
+
+        # 2. Sales Invoices (Nota / Edit Nota)
+        ref = self.reference
+        if ref.startswith("Nota:") or ref.startswith("Edit Nota:"):
+            match = re.search(r'CK-\w{2}\d{7}', ref)
+            if match:
+                nomor_faktur = match.group(0)
+                if Invoice.objects.filter(nomor_faktur=nomor_faktur).exists():
+                    return f"/admin/sales/invoice/{nomor_faktur}/change/"
+
+        # 3. Restock Invoices (PO Masuk)
+        if ref.startswith("PO Masuk:"):
+            nomor_faktur = ref.replace("PO Masuk:", "").strip()
+            try:
+                restock_invoice = RestockInvoice.objects.get(nomor_faktur=nomor_faktur)
+                return f"/admin/sales/restockinvoice/{restock_invoice.pk}/change/"
+            except RestockInvoice.DoesNotExist:
+                pass
+
+        return None
     
 class Supplier(models.Model):
     nama_supplier = models.CharField(max_length=100, unique=True) # e.g., PT MITRA RAJA ANUGERAH
@@ -464,7 +566,6 @@ class RestockItem(models.Model):
         super().save(*args, **kwargs)
         
         if is_new:
-            
             StockTransaction.objects.create(
                 product=self.product,
                 transaction_type='IN',
@@ -472,8 +573,14 @@ class RestockItem(models.Model):
                 reference=f"PO Masuk: {self.restock_invoice.nomor_faktur}"
             )
             
-            # THE MAGIC: Instead of F() math, just tell the product to recalculate!
+            # Recalculate stock from the full ledger
             self.product.update_stock_from_history()
+
+            # Sync product's harga_beli to the latest purchase price
+            if self.harga_beli and self.harga_beli > 0:
+                Product.objects.filter(pk=self.product.pk).update(
+                    harga_beli=self.harga_beli
+                )
 
     def delete(self, *args, **kwargs):
         product = self.product
@@ -540,7 +647,7 @@ class ReadyMix(models.Model):
         verbose_name='Jenis Transaksi'
     )
     tanggal = models.DateField(default=datetime.date.today)
-    catatan = models.TextField(blank=True, null=True)
+    nomor_faktur = models.CharField(max_length=100, blank=True, default='', verbose_name='Nomor Faktur')
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
@@ -576,3 +683,29 @@ class ReadyMixIngredient(models.Model):
 
     def __str__(self):
         return f"{self.product.nama_barang} ×{self.qty}"
+
+
+# --- AUTOMATIC STOCK RESTORATION SIGNALS FOR READYMIX / MOVING DELETION ---
+
+@receiver(pre_delete, sender=ReadyMix)
+def ready_mix_pre_delete(sender, instance, **kwargs):
+    """
+    Before the ReadyMix instance is deleted, gather all affected products
+    (ingredients and outputs) so we can recalculate their stocks in post_delete.
+    """
+    products_to_update = set()
+    for ingredient in instance.ingredients.all():
+        products_to_update.add(ingredient.product)
+    for output in instance.outputs.all():
+        products_to_update.add(output.product)
+    instance._products_to_update = products_to_update
+
+@receiver(post_delete, sender=ReadyMix)
+def ready_mix_post_delete(sender, instance, **kwargs):
+    """
+    After the ReadyMix instance and its related items (and StockTransactions) are deleted,
+    recalculate stock for all affected products using update_stock_from_history().
+    """
+    products = getattr(instance, '_products_to_update', [])
+    for product in products:
+        product.update_stock_from_history()

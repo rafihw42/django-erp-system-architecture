@@ -18,9 +18,12 @@ venv/
 ENV/
 env/
 
-# Environment variables
+# Environment variables — never commit secrets
 .env
-.env.*
+.env.local
+.env.production
+.env.staging
+# .env.example is intentionally NOT ignored — it's a safe template
 
 # IDE / Editor
 .vscode/

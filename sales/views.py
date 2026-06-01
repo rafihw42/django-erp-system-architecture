@@ -22,9 +22,14 @@ def print_nota(request, nomor_faktur):
     # 5. Calculate Final Grand Total
     grand_total = setelah_diskon + ppn_nominal
     
+    items = invoice.items.all()[:13]
+    item_count = len(list(items))
+    empty_rows = range(max(0, 13 - item_count))
+
     context = {
         'invoice': invoice,
-        'items': invoice.items.all(),
+        'items': items,
+        'empty_rows': empty_rows,
         'subtotal': subtotal,
         'diskon_nominal': diskon_nominal,
         'ppn_nominal': ppn_nominal,
@@ -38,11 +43,14 @@ def get_product_price(request, kode_barang):
     try:
         # Find the product in the database
         product = Product.objects.get(kode_barang=kode_barang)
-        # Send the price back to the browser
-        return JsonResponse({'harga': product.harga_jual})
+        # Send the price back to the browser (harga_beli used by restock form)
+        return JsonResponse({
+            'harga': product.harga_jual,
+            'harga_beli': product.harga_beli,
+        })
     except Product.DoesNotExist:
         # If something goes wrong, send 0
-        return JsonResponse({'harga': 0})
+        return JsonResponse({'harga': 0, 'harga_beli': 0})
     
 
 def get_customer_tempo(request, kode_cust):
@@ -220,7 +228,7 @@ def print_surat_jalan(request, nomor_faktur):
     
     item_count = items.count()
     # Calculate how many empty rows we need to reach 12
-    empty_row_count = max(0, 15 - item_count) 
+    empty_row_count = max(0, 13 - item_count) 
     # Create a dummy list for Django to loop through (e.g., [0, 1, 2, 3, 4...])
     empty_rows = range(empty_row_count)
     
@@ -240,7 +248,7 @@ def create_readymix(request):
 
         jenis = request.POST.get('jenis', 'Ready Mix')
         tanggal = request.POST.get('tanggal')
-        catatan = request.POST.get('catatan', '')
+        nomor_faktur = request.POST.get('nomor_faktur', '')
 
         output_kodes = request.POST.getlist('output_product[]')
         output_qtys = request.POST.getlist('output_qty[]')
@@ -302,7 +310,7 @@ def create_readymix(request):
             ready_mix = ReadyMix.objects.create(
                 jenis=jenis,
                 tanggal=tanggal,
-                catatan=catatan
+                nomor_faktur=nomor_faktur
             )
 
             # Deduct each ingredient (Input)
@@ -346,7 +354,8 @@ def create_readymix(request):
                     product=ingredient,
                     transaction_type='OUT',
                     qty=qty,
-                    reference=f"{jenis} → {outputs_summary_text}"
+                    reference=jenis,
+                    readymix=ready_mix
                 )
 
             # Log IN transactions for outputs
@@ -356,7 +365,8 @@ def create_readymix(request):
                     product=output_product,
                     transaction_type='IN',
                     qty=qty,
-                    reference=f"{jenis} dari: {ingredients_summary_text}"
+                    reference=jenis,
+                    readymix=ready_mix
                 )
 
         messages.success(request, f'✅ Proses {jenis} berhasil! Stok telah diperbarui.')
@@ -368,6 +378,198 @@ def create_readymix(request):
         'products': products
     }
     return render(request, 'sales/create_readymix.html', context)
+
+
+@staff_member_required
+def edit_readymix(request, pk):
+    from .models import ReadyMix, ReadyMixIngredient, ReadyMixOutput, Product, StockTransaction
+    from django.db.models import F
+    from django.db import transaction as db_transaction
+
+    ready_mix = get_object_or_404(ReadyMix, pk=pk)
+
+    if request.method == 'POST':
+        jenis = request.POST.get('jenis', 'Ready Mix')
+        tanggal = request.POST.get('tanggal')
+        nomor_faktur = request.POST.get('nomor_faktur', '')
+
+        output_kodes = request.POST.getlist('output_product[]')
+        output_qtys = request.POST.getlist('output_qty[]')
+
+        ingredient_kodes = request.POST.getlist('ingredient_product[]')
+        ingredient_qtys = request.POST.getlist('ingredient_qty[]')
+
+        # Clean and validate output list
+        cleaned_outputs = []
+        for i in range(len(output_kodes)):
+            kode = output_kodes[i].strip()
+            if not kode:
+                continue
+            try:
+                qty = int(output_qtys[i])
+            except (ValueError, TypeError):
+                qty = 0
+            if qty <= 0:
+                messages.error(request, 'Jumlah hasil produk harus lebih dari 0!')
+                return redirect('edit_readymix', pk=pk)
+            cleaned_outputs.append((kode, qty))
+
+        # Clean and validate input list
+        cleaned_ingredients = []
+        for i in range(len(ingredient_kodes)):
+            kode = ingredient_kodes[i].strip()
+            if not kode:
+                continue
+            try:
+                qty = int(ingredient_qtys[i])
+            except (ValueError, TypeError):
+                qty = 0
+            if qty <= 0:
+                messages.error(request, 'Jumlah bahan harus lebih dari 0!')
+                return redirect('edit_readymix', pk=pk)
+            cleaned_ingredients.append((kode, qty))
+
+        if not cleaned_outputs:
+            messages.error(request, 'Harus ada minimal 1 produk hasil (output)!')
+            return redirect('edit_readymix', pk=pk)
+
+        if not cleaned_ingredients:
+            messages.error(request, 'Harus ada minimal 1 bahan (input)!')
+            return redirect('edit_readymix', pk=pk)
+
+        # Get existing ingredients to calculate stock offsets
+        existing_ingredients = {ing.product.kode_barang: ing.qty for ing in ready_mix.ingredients.all()}
+
+        # Validate stock availability for each ingredient (taking into account original transaction quantities)
+        for kode, qty in cleaned_ingredients:
+            product = Product.objects.get(kode_barang=kode)
+            old_qty = existing_ingredients.get(kode, 0)
+            max_available = product.stok_saat_ini + old_qty
+            if max_available < qty:
+                messages.error(
+                    request,
+                    f'Stok {product.nama_barang} tidak cukup! '
+                    f'Tersedia: {product.stok_saat_ini} (Original: {old_qty}), Diminta: {qty}'
+                )
+                return redirect('edit_readymix', pk=pk)
+
+        # Process inside a transaction
+        with db_transaction.atomic():
+            # Track all products involved in the original transaction
+            affected_products = set()
+            for ing in ready_mix.ingredients.all():
+                affected_products.add(ing.product)
+            for out in ready_mix.outputs.all():
+                affected_products.add(out.product)
+
+            # Delete old ingredients, outputs, and stock transactions
+            ready_mix.ingredients.all().delete()
+            ready_mix.outputs.all().delete()
+            ready_mix.stock_transactions.all().delete()
+
+            # Update ready_mix fields
+            ready_mix.jenis = jenis
+            ready_mix.tanggal = tanggal
+            ready_mix.nomor_faktur = nomor_faktur
+            ready_mix.save()
+
+            # Deduct each ingredient (Input)
+            ingredient_names = []
+            for kode, qty in cleaned_ingredients:
+                ingredient = Product.objects.get(kode_barang=kode)
+                ReadyMixIngredient.objects.create(
+                    ready_mix=ready_mix,
+                    product=ingredient,
+                    qty=qty
+                )
+                affected_products.add(ingredient)
+                ingredient_names.append(f"{ingredient.nama_barang} ×{qty}")
+
+            # Add each output product (Output)
+            output_names = []
+            for kode, qty in cleaned_outputs:
+                output_product = Product.objects.get(kode_barang=kode)
+                ReadyMixOutput.objects.create(
+                    ready_mix=ready_mix,
+                    product=output_product,
+                    qty=qty
+                )
+                affected_products.add(output_product)
+                output_names.append(f"{output_product.nama_barang} ×{qty}")
+
+            # Build summaries
+            outputs_summary_text = ", ".join(output_names)
+            ingredients_summary_text = ", ".join(ingredient_names)
+
+            # Log OUT transactions for ingredients
+            for kode, qty in cleaned_ingredients:
+                ingredient = Product.objects.get(kode_barang=kode)
+                StockTransaction.objects.create(
+                    product=ingredient,
+                    transaction_type='OUT',
+                    qty=qty,
+                    reference=jenis,
+                    readymix=ready_mix
+                )
+
+            # Log IN transactions for outputs
+            for kode, qty in cleaned_outputs:
+                output_product = Product.objects.get(kode_barang=kode)
+                StockTransaction.objects.create(
+                    product=output_product,
+                    transaction_type='IN',
+                    qty=qty,
+                    reference=jenis,
+                    readymix=ready_mix
+                )
+
+            # Recalculate stock for all affected products
+            for product in affected_products:
+                product.update_stock_from_history()
+
+        messages.success(request, f'✅ Edit {jenis} berhasil! Stok telah diperbarui.')
+        return redirect('/admin/sales/readymix/')
+
+    # GET — render the form
+    products = Product.objects.all().order_by('nama_barang')
+    ingredients = ready_mix.ingredients.all()
+    outputs = ready_mix.outputs.all()
+    context = {
+        'ready_mix': ready_mix,
+        'ingredients': ingredients,
+        'outputs': outputs,
+        'products': products
+    }
+    return render(request, 'sales/create_readymix.html', context)
+
+
+@staff_member_required
+def print_readymix(request, pk):
+    from .models import ReadyMix
+    from django.http import Http404
+    ready_mix = get_object_or_404(ReadyMix, pk=pk)
+    if ready_mix.jenis != 'Ready Mix':
+        raise Http404("Faktur hanya tersedia untuk transaksi Ready Mix.")
+    
+    outputs = list(ready_mix.outputs.all())
+    ingredients = list(ready_mix.ingredients.all())
+    max_len = max(len(outputs), len(ingredients))
+    
+    rows = []
+    for i in range(max(max_len, 13)):
+        out = outputs[i] if i < len(outputs) else None
+        ing = ingredients[i] if i < len(ingredients) else None
+        rows.append({
+            'output': out,
+            'ingredient': ing
+        })
+        
+    context = {
+        'ready_mix': ready_mix,
+        'rows': rows,
+    }
+    return render(request, 'sales/print_readymix.html', context)
+
 
 @staff_member_required
 def dashboard(request):
@@ -500,3 +702,174 @@ def dashboard_data_api(request):
         'matrix_table': matrix_data,
     }
     return JsonResponse(response_data)
+
+
+@staff_member_required
+def rekap_yudi(request):
+    import datetime
+    from collections import defaultdict
+    from django.db.models import Sum
+
+    today = datetime.date.today()
+    selected_month = int(request.GET.get('month', today.month))
+    selected_year = int(request.GET.get('year', today.year))
+
+    # --- 1. Gather ReadyMixIngredient data (Bahan consumed) — Ready Mix only ---
+    ingredients = (
+        ReadyMixIngredient.objects
+        .filter(
+            ready_mix__jenis='Ready Mix',
+            ready_mix__tanggal__year=selected_year,
+            ready_mix__tanggal__month=selected_month,
+        )
+        .values('ready_mix__tanggal', 'product__kategori')
+        .annotate(total_qty=Sum('qty'))
+    )
+
+    bahan_by_day = defaultdict(lambda: {'PU': 0, 'NC': 0})
+    for row in ingredients:
+        day = row['ready_mix__tanggal'].day
+        kat = (row['product__kategori'] or '').upper()
+        if kat in ('PU', 'NC'):
+            bahan_by_day[day][kat] += row['total_qty']
+
+    # --- 2. Gather ReadyMixOutput data (Ready Mix produced) — Ready Mix only ---
+    outputs = (
+        ReadyMixOutput.objects
+        .filter(
+            ready_mix__jenis='Ready Mix',
+            ready_mix__tanggal__year=selected_year,
+            ready_mix__tanggal__month=selected_month,
+        )
+        .values('ready_mix__tanggal', 'product__kategori')
+        .annotate(total_qty=Sum('qty'))
+    )
+
+    rm_by_day = defaultdict(lambda: {'PU': 0, 'NC': 0})
+    for row in outputs:
+        day = row['ready_mix__tanggal'].day
+        kat = (row['product__kategori'] or '').upper()
+        if kat in ('PU', 'NC'):
+            rm_by_day[day][kat] += row['total_qty']
+
+    # --- 3. Gather ReadyMix faktur list per day (Ready Mix only, not Moving) ---
+    readymix_records = (
+        ReadyMix.objects
+        .filter(
+            jenis='Ready Mix',
+            tanggal__year=selected_year,
+            tanggal__month=selected_month,
+        )
+        .order_by('tanggal', 'pk')
+    )
+
+    faktur_by_day = defaultdict(list)
+    for rm in readymix_records:
+        faktur_by_day[rm.tanggal.day].append({
+            'pk': rm.pk,
+            'nomor_faktur': rm.nomor_faktur,
+        })
+
+    # --- 4. Build day rows ---
+    import calendar
+    days_in_month = calendar.monthrange(selected_year, selected_month)[1]
+
+    rows = []
+    totals = {'bahan_pu': 0, 'bahan_nc': 0, 'rm_pu': 0, 'rm_nc': 0}
+
+    for day in range(1, days_in_month + 1):
+        bahan_pu = bahan_by_day[day]['PU']
+        bahan_nc = bahan_by_day[day]['NC']
+        rm_pu = rm_by_day[day]['PU']
+        rm_nc = rm_by_day[day]['NC']
+        faktur_list = faktur_by_day[day]
+
+        totals['bahan_pu'] += bahan_pu
+        totals['bahan_nc'] += bahan_nc
+        totals['rm_pu'] += rm_pu
+        totals['rm_nc'] += rm_nc
+
+        rows.append({
+            'day': day,
+            'bahan_pu': bahan_pu,
+            'bahan_nc': bahan_nc,
+            'rm_pu': rm_pu,
+            'rm_nc': rm_nc,
+            'faktur_list': faktur_list,
+            'has_data': bool(bahan_pu or bahan_nc or rm_pu or rm_nc or faktur_list),
+        })
+
+    # --- Difference: Bahan consumed minus Ready Mix produced ---
+    totals['selisih_pu'] = totals['bahan_pu'] - totals['rm_pu']
+    totals['selisih_nc'] = totals['bahan_nc'] - totals['rm_nc']
+
+    # --- 5. Build year list for filter ---
+    from .models import ReadyMix as RM
+    year_dates = RM.objects.dates('tanggal', 'year', order='DESC')
+    year_list = [d.year for d in year_dates]
+    if not year_list:
+        year_list = [today.year]
+    if today.year not in year_list:
+        year_list.insert(0, today.year)
+
+    month_names = [
+        (1, 'Januari'), (2, 'Februari'), (3, 'Maret'), (4, 'April'),
+        (5, 'Mei'), (6, 'Juni'), (7, 'Juli'), (8, 'Agustus'),
+        (9, 'September'), (10, 'Oktober'), (11, 'November'), (12, 'Desember'),
+    ]
+
+    context = {
+        'rows': rows,
+        'totals': totals,
+        'selected_month': selected_month,
+        'selected_year': selected_year,
+        'year_list': year_list,
+        'month_names': month_names,
+    }
+    return render(request, 'sales/rekap_yudi.html', context)
+
+
+# --- AJAX: Next Customer Code Preview ---
+def ajax_next_customer_code(request):
+    """
+    Returns the next available kode_cust for a given wilayah.
+    Used by customer_admin.js to live-preview the code before saving.
+    GET /api/next-customer-code/?wilayah=Jawa+Tengah → {"kode_cust": "JT-029"}
+    """
+    from .models import WILAYAH_PREFIX_MAP
+    wilayah = request.GET.get('wilayah', '').strip()
+    if not wilayah:
+        return JsonResponse({'kode_cust': ''})
+
+    prefix = WILAYAH_PREFIX_MAP.get(wilayah, wilayah[:2].upper())
+    last = (
+        Customer.objects
+        .filter(kode_cust__startswith=f"{prefix}-")
+        .order_by('-kode_cust')
+        .first()
+    )
+    if last:
+        try:
+            seq = int(last.kode_cust.split('-')[1]) + 1
+        except (IndexError, ValueError):
+            seq = 1
+    else:
+        seq = 1
+    return JsonResponse({'kode_cust': f"{prefix}-{seq:03d}"})
+
+
+# --- AJAX: Get Customer's Kode Sales ---
+def ajax_customer_sales(request):
+    """
+    Returns the kode_sales for a given customer.
+    Used by invoice_admin.js to auto-fill the sales field when a customer is selected.
+    GET /api/customer-sales/?kode_cust=JT-001 → {"kode_sales": "A1"}
+    """
+    kode_cust = request.GET.get('kode_cust', '').strip()
+    if not kode_cust:
+        return JsonResponse({'kode_sales': ''})
+    try:
+        customer = Customer.objects.get(kode_cust=kode_cust)
+        return JsonResponse({'kode_sales': customer.kode_sales or ''})
+    except Customer.DoesNotExist:
+        return JsonResponse({'kode_sales': ''})

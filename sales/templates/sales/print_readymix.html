@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Ready Mix: {{ ready_mix.nomor_faktur|default:"-" }}</title>
+    <style>
+        /* --- PRINT SETTINGS --- */
+        @page {
+            size: halfletter landscape;
+            margin: 0.15in;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        /* --- TYPOGRAPHY & MAX-COMPACT SPACING --- */
+        body {
+            font-family: 'Calibri', sans-serif;
+            padding: 10px;
+            font-size: 13px;
+            line-height: 1.1;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 5px;
+            border-bottom: 2px solid black;
+            padding-bottom: 5px;
+        }
+
+        .header-brand {
+            font-weight: bold;
+            font-size: 32px;
+            margin: 0;
+            line-height: 1;
+        }
+
+        .header-sub {
+            font-weight: bold;
+            font-size: 15px;
+            margin-bottom: 2px;
+        }
+
+        .title-nota {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: right;
+            margin: 0;
+        }
+
+        /* --- INFO ROW --- */
+        .info-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .info-block {
+            display: flex;
+            gap: 15px;
+        }
+
+        /* --- ITEMS TABLE & CONTAINER --- */
+        .items-container {
+            flex-grow: 1;
+            margin-bottom: 5px;
+        }
+
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-bottom: 1px solid black;
+        }
+
+        /* Table Header: Zero padding, thinner lines */
+        .items-table th {
+            border: none;
+            padding: 2px 4px;
+            text-align: center;
+            border-top: 1px solid black;
+            border-bottom: 1px solid black;
+        }
+
+        /* Table Values: Zero padding */
+        .items-table td {
+            border: none;
+            padding: 1px 4px;
+            text-align: left;
+        }
+
+        .items-table tbody tr {
+            height: 15px;
+        }
+
+        /* Column alignments */
+        .items-table td:nth-child(3),
+        .items-table td:nth-child(6) {
+            text-align: center;
+        }
+
+        .items-table td:nth-child(1),
+        .items-table td:nth-child(4) {
+            text-align: center;
+        }
+
+        /* Center vertical border separating Masuk and Keluar */
+        .items-table th:nth-child(3),
+        .items-table td:nth-child(3) {
+            border-right: 1px solid black;
+        }
+
+        /* Print Hiding */
+        @media print {
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body onload="window.print()">
+
+    <div class="no-print" style="margin-bottom: 10px;">
+        <button onclick="window.print()"
+            style="padding: 8px; background: #007bff; color: white; border: none; cursor: pointer; font-size: 12px; font-weight: bold; border-radius: 4px;">Print / Save PDF</button>
+    </div>
+
+    <!-- --- HEADER --- -->
+    <div class="header-container">
+        <div>
+            <div class="header-brand">ColorKing</div>
+            <div class="header-sub">READY MIX INVOICE</div>
+        </div>
+        <div>
+            <div class="title-nota">READY MIX</div>
+        </div>
+    </div>
+
+    <!-- --- INFO ROW --- -->
+    <div class="info-container">
+        <div class="info-block">
+            <div><strong>Nomor Faktur:</strong> {{ ready_mix.nomor_faktur|default:"-" }}</div>
+            <div><strong>Tanggal:</strong> {{ ready_mix.tanggal|date:"d M Y" }}</div>
+        </div>
+    </div>
+
+    <!-- --- TABLE AREA --- -->
+    <div class="items-container">
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th colspan="3" style="background-color: #f2f2f2; border-bottom: 1px solid black;">Bahan Masuk</th>
+                    <th colspan="3" style="background-color: #f2f2f2; border-bottom: 1px solid black;">Bahan Keluar</th>
+                </tr>
+                <tr>
+                    <th width="15%">Kategori</th>
+                    <th width="28%">Nama Bahan</th>
+                    <th width="7%">Qty</th>
+                    <th width="15%">Kategori</th>
+                    <th width="28%">Nama Bahan</th>
+                    <th width="7%">Qty</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <!-- Bahan Masuk (Output) -->
+                    <td>{{ row.output.product.kategori|default:"" }}</td>
+                    <td>{{ row.output.product.nama_barang|default:"" }}</td>
+                    <td>{% if row.output %}{{ row.output.qty }}{% endif %}</td>
+
+                    <!-- Bahan Keluar (Ingredient) -->
+                    <td>{{ row.ingredient.product.kategori|default:"" }}</td>
+                    <td>{{ row.ingredient.product.nama_barang|default:"" }}</td>
+                    <td>{% if row.ingredient %}{{ row.ingredient.qty }}{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</body>
+
+</html>

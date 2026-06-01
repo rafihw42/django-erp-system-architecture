@@ -24,12 +24,37 @@ function addRow() {
     // Paste it into the table
     tbody.appendChild(clone);
     
-    // --- NEW: TURN THE NEW DROPDOWN INTO A SEARCH BAR ---
-    // We find the very last row we just added, and apply Select2 only to that row
+    // --- TURN THE NEW DROPDOWN INTO A SEARCH BAR ---
     const newRow = tbody.lastElementChild;
-    $(newRow).find('.select2-product').select2({
+    const $select = $(newRow).find('.select2-product');
+
+    $select.select2({
         placeholder: "-- Cari / Pilih Barang --",
-        width: '100%' // Ensures it fills the table cell nicely
+        width: '100%'
+    });
+
+    // --- AUTO-FILL harga_beli WHEN A PRODUCT IS SELECTED ---
+    $select.on('change', function () {
+        const kodeBarang = $(this).val();
+        if (!kodeBarang) return;
+
+        fetch(`/api/get-price/${encodeURIComponent(kodeBarang)}/`)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                const hargaInput = newRow.querySelector('input[name="harga_beli[]"]');
+                if (hargaInput && data.harga_beli !== undefined) {
+                    hargaInput.value = data.harga_beli;
+                    // Recalculate this row's subtotal immediately
+                    calculateRow(hargaInput);
+                    // Visual flash to show it was filled
+                    hargaInput.style.transition = 'background-color 0.3s';
+                    hargaInput.style.backgroundColor = '#d4edda';
+                    setTimeout(function () { hargaInput.style.backgroundColor = ''; }, 800);
+                }
+            })
+            .catch(function (err) {
+                console.warn('restock_math.js: Failed to fetch harga_beli', err);
+            });
     });
 }
 

@@ -4,6 +4,141 @@ Semua perubahan penting pada proyek ini akan didokumentasikan di file ini.
 
 ---
 
+## [2026-06-02] — Keamanan: Secrets & Debug Mode ke `.env`
+
+### 🔒 Hardening: SECRET_KEY & DEBUG Dipindah ke `.env`
+- **Masalah:** `SECRET_KEY` Django ter-hardcode di `settings.py` yang sudah terlacak oleh git, dan `DEBUG=True` aktif secara permanen — berbahaya jika server diakses lewat ngrok karena Django menampilkan **full source code + database queries** saat terjadi error.
+- **Solusi:** Menggunakan `python-dotenv` untuk membaca semua konfigurasi sensitif dari file `.env` lokal yang **gitignored**.
+- **Perubahan:**
+  - `SECRET_KEY` diganti dengan kunci baru yang lebih kuat, disimpan di `.env`
+  - `DEBUG` dibaca dari `.env`, defaultnya `False` (aman) jika variabel tidak diset
+  - `ALLOWED_HOSTS` dibaca dari `.env` sebagai comma-separated string
+  - Ditambahkan `.env.example` (aman untuk di-commit) sebagai template setup
+  - `requirements.txt` diperbarui dengan tambahan `python-dotenv`
+- **File:** `colorking/settings.py`, `.env.example`, `requirements.txt`
+- **Catatan:** File `.env` lokal **tidak di-commit**. Saat setup di mesin baru, salin `.env.example` → `.env` dan isi nilainya.
+
+---
+
+## [2026-06-01] — Perbaikan Bug: Autofill Harga Beli & Kode Sales
+
+### 🐛 Fix: Autofill `harga_beli` Tidak Muncul di Form Restock
+- **Penyebab:** Kondisi `if (hargaInput && data.harga_beli)` di `restock_math.js` memperlakukan nilai `0` sebagai *falsy* di JavaScript — sehingga produk dengan harga beli `Rp 0` tidak pernah terisi otomatis.
+- **Perbaikan:** Kondisi diubah menjadi `data.harga_beli !== undefined` agar nilai `0` tetap mengisi field.
+- **File:** `sales/static/sales/js/restock_math.js`
+
+### 🐛 Fix: Autofill `kode_sales` Tidak Berjalan di Form Invoice
+- **Penyebab (Root Cause):** Ada dua lapis masalah:
+  1. **Salah event:** `autocomplete_fields = ['customer']` pada `InvoiceAdmin` membuat field Customer dirender sebagai widget Select2 oleh Django admin. Select2 menyembunyikan `<select>` asli dan **menelan event `change` native DOM** — sehingga `addEventListener('change', ...)` tidak pernah terpicu.
+  2. **Race condition timing:** Bahkan setelah beralih ke `select2:select`, listener di-attach langsung ke elemen `#id_customer` saat `DOMContentLoaded` — namun Django admin baru menginisialisasi Select2 pada elemen tersebut **setelah** `DOMContentLoaded` selesai. Akibatnya listener terpasang sebelum Select2 ada, dan tidak berfungsi.
+- **Perbaikan:** Menggunakan **jQuery event delegation pada `document`** (`$(document).on('select2:select', '#id_customer', ...)`). Cara ini bekerja tanpa peduli kapan Select2 diinisialisasi karena event selalu naik ke `document`.
+- **File:** `sales/static/sales/js/invoice_admin_autofill.js`
+
+---
+
+## [2026-05-30] — Fitur Baru: Kode Sales per Customer, Sorting Faktur, Checklist Cetak & Autocomplete Customer
+
+### 🧑‍💼 Kode Sales Default per Customer
+- **Field Baru `kode_sales` pada Customer:** Menambahkan field pilihan (dropdown A1/A2/A3) pada model `Customer` untuk menyimpan Kode Sales default masing-masing customer.
+- **Auto-fill saat Membuat Faktur (Backend):** Saat faktur baru disimpan, field `sales` pada `Invoice` otomatis terisi dari `kode_sales` customer yang dipilih — jika field sales masih kosong. Tidak mempengaruhi faktur yang sudah ada.
+- **Auto-fill Langsung di Form (Frontend):** Menambahkan script JavaScript (`invoice_admin_autofill.js`) yang langsung mengisi field Kode Sales begitu user memilih customer di form Invoice — tanpa perlu menyimpan dulu. Diimplementasikan via endpoint AJAX baru `/api/customer-sales/`.
+- **Edit Cepat dari Daftar Customer:** Kolom `kode_sales` ditambahkan ke tampilan daftar Customer di Admin dengan `list_editable` — bisa langsung diubah dari halaman list tanpa membuka tiap customer.
+- **`SALES_CHOICES` dipindah ke level modul** agar dapat digunakan bersama oleh model `Customer` dan `Invoice`.
+- **File:** `sales/models.py`, `sales/admin.py`, `sales/views.py`, `sales/static/sales/js/invoice_admin_autofill.js`, `colorking/urls.py`
+- **Migrasi:** `0028_customer_kode_sales.py`
+
+### 📅 Sorting Default Faktur: Terbaru di Atas
+- **Default Ordering Invoice:** Menambahkan `class Meta` dengan `ordering = ['-tanggal', '-nomor_faktur']` pada model `Invoice`.
+- Faktur di halaman Admin sekarang diurutkan dari **tanggal terbaru ke terlama** secara otomatis. Faktur JT dan JB tercampur murni berdasarkan tanggal.
+- **File:** `sales/models.py`
+
+### 🖨️ Checklist "Sudah Cetak" pada Faktur
+- **Field Baru `sudah_cetak`:** Menambahkan `BooleanField` (default `False`) pada model `Invoice` untuk menandai apakah faktur sudah dicetak.
+- **Edit Langsung dari List:** Kolom `sudah_cetak` ditampilkan di halaman daftar Invoice sebagai checkbox yang bisa dicentang langsung tanpa membuka faktur.
+- **File:** `sales/models.py`, `sales/admin.py`
+- **Migrasi:** `0029_invoice_sudah_cetak.py`
+
+### 🔍 Autocomplete Search untuk Customer di Form Invoice
+- **Dropdown Customer Berubah Jadi Search Box:** Mengaktifkan `autocomplete_fields = ['customer']` pada `InvoiceAdmin`.
+- User kini bisa mengetik nama atau kode customer untuk mencari, alih-alih scroll dropdown panjang.
+- Memanfaatkan `search_fields` yang sudah ada di `CustomerAdmin` (`kode_cust`, `nama_cust`) — tidak perlu konfigurasi tambahan.
+- **File:** `sales/admin.py`
+
+---
+
+## [2026-05-26] — Fitur Baru: Edit Ready Mix & Link Referensi Clickable
+
+### 🧪 Fitur Edit Transaksi Ready Mix / Moving
+- **Akses Pengeditan:** Menambahkan kemampuan untuk mengedit transaksi Ready Mix / Moving. Mengklik baris transaksi di Django Admin akan membuka custom web view form yang terpopulasi dengan data asli (tanggal, jenis, catatan, bahan, hasil) untuk diedit.
+- **Rekonsiliasi Stok & Ledger:** Proses update berjalan di dalam `transaction.atomic()`. Menghapus detail transaksi dan catatan ledger (`StockTransaction`) lama, menulis ulang data baru, dan menghitung ulang stok produk yang terlibat menggunakan `update_stock_from_history()`.
+- **Validasi Ketersediaan Stok (Offset):** Sistem pengecekan stok saat edit memperhitungkan kuantitas yang saat ini sudah digunakan oleh transaksi tersebut, mencegah error "Stok tidak cukup" ketika user memperkecil atau mempertahankan jumlah bahan.
+
+### 🔗 Link Referensi Riwayat Stok Clickable
+- **Navigasi Langsung:** Kolom "Referensi" pada Riwayat Stok kini menjadi link clickable yang mengarah langsung ke dokumen sumber:
+  - Faktur Penjualan (Nota) -> Halaman edit Invoice di Django Admin.
+  - Restock Invoice (PO Masuk) -> Halaman edit Restock Invoice di Django Admin.
+  - Ready Mix / Moving -> Custom edit form Ready Mix.
+- **Penyederhanaan Log Referensi:** Log referensi Ready Mix / Moving disederhanakan hanya menampilkan `"Ready Mix"` atau `"Moving"` karena rincian bahan dan produk dapat langsung dilihat dengan mengklik link tersebut.
+
+---
+
+## [2026-05-26] — Perbaikan Tampilan Cetak: Surat Jalan & Nota
+
+### 🖨️ Surat Jalan — Unifikasi Ukuran Font
+- **Sebelumnya:** Font size tidak konsisten — `8pt` untuk alamat, `12pt` untuk isi tabel (dideklarasikan ulang di `th` dan `td`), dan `15pt` untuk judul.
+- **Sesudahnya:** Semua teks kini menggunakan ukuran seragam yang diwarisi dari `body` (`11pt`), kecuali judul "Surat Jalan CK" yang tetap `15pt`.
+- **File:** `sales/templates/sales/surat_jalan.html`
+
+### 🖨️ Surat Jalan — Header Tabel Hanya Garis Atas & Bawah
+- **Sebelumnya:** Header tabel (`<th>`) memiliki `border: 1px solid black` pada semua sisi (termasuk kiri dan kanan antar kolom).
+- **Sesudahnya:** Hanya `border-top` dan `border-bottom` yang dipertahankan, menghasilkan tampilan header yang lebih bersih tanpa pembatas vertikal antar kolom.
+- **File:** `sales/templates/sales/surat_jalan.html`
+
+### 📋 Nota — Perbaikan Alignment Alamat Multi-Baris
+- **Sebelumnya:** Saat alamat customer terdiri dari lebih dari satu baris, baris kedua (dan seterusnya) wrap kembali ke posisi titik dua (`:`) alih-alih sejajar dengan awal teks alamat.
+- **Sesudahnya:** Tanda titik dua dan teks alamat dibungkus dalam flex container terpisah, sehingga baris lanjutan selalu rata dengan karakter pertama alamat.
+- **File:** `sales/templates/sales/nota.html`
+
+---
+
+## [2026-05-25] — Fitur Baru: Ekspor Faktur & Perbaikan Tampilan Surat Jalan
+
+### 📤 Ekspor Faktur Berdasarkan Filter/Pencarian
+- **Fitur Ekspor:** Menambahkan tombol **Export** di halaman daftar Invoices pada Admin Panel.
+- **Filter-Aware:** Ekspor hanya mengambil faktur yang sedang ditampilkan — mengikuti filter tanggal, status pembayaran, maupun hasil pencarian yang aktif.
+- **Format:** Mendukung ekspor ke **CSV** dan **Excel** menggunakan library `django-import-export` yang sudah terpasang.
+- **Kolom yang Diekspor:** Nomor Faktur, Tanggal, Jatuh Tempo, Nama Customer, Wilayah, Sales, Status Pembayaran, Diskon (%), PPN (%), Subtotal (Rp), Grand Total (Rp), dan Nomor Resi.
+- **Implementasi:**
+  - Menambahkan class `InvoiceResource` di `sales/admin.py` dengan field `nama_customer`, `wilayah`, `subtotal`, dan `grand_total` yang dihitung dari relasi item.
+  - Mengubah `InvoiceAdmin` dari `admin.ModelAdmin` menjadi `ImportExportModelAdmin`.
+
+### 🖨️ Perbaikan Tampilan Surat Jalan — Hapus Border Baris Data
+- **Sebelumnya:** Semua baris tabel (header dan data) memiliki border `1px solid black`.
+- **Sesudahnya:** Hanya baris **header** (`<th>`) yang mempertahankan border. Baris data (`<td>`) tidak memiliki border sama sekali, menghasilkan tampilan yang lebih bersih.
+- **File:** `sales/templates/sales/surat_jalan.html`
+
+### 📐 Penyesuaian Ukuran Font & Jumlah Baris Surat Jalan
+- **Jumlah Baris Maksimal:** Dikurangi dari **15** menjadi **13** baris untuk memberikan ruang vertikal tambahan.
+- **Ukuran Font:** Ditingkatkan dari `10pt` menjadi **`12pt`** untuk header dan isi tabel, menghasilkan teks yang lebih mudah dibaca.
+- **Tinggi Baris:** Dinaikkan dari `16px` menjadi **`20px`** agar teks dengan font lebih besar tidak terpotong.
+- **Penyesuaian Spasi:** `line-height` diperketat (`1.2` → `1.1`), margin header dan footer dikurangi sedikit untuk memastikan semua elemen tetap muat dalam satu halaman *Half Letter*.
+- **File:** `sales/views.py` (baris cap) + `sales/templates/sales/surat_jalan.html` (CSS)
+
+---
+
+## [2026-05-24] — Fitur Baru: Deplesi & Restorasi Stok Ready Mix/Moving & Pengurutan Produk Default
+
+### 🗑️ Fitur Hapus Transaksi Ready Mix / Moving
+- **Penghapusan Transaksi:** Membuka akses untuk menghapus histori transaksi Ready Mix / Moving langsung dari Django Admin.
+- **Cascading & Relasi:** Menambahkan foreign key `readymix` pada model `StockTransaction` agar saat transaksi Ready Mix dihapus, semua transaksi stok terkait otomatis terhapus (CASCADE).
+- **Restorasi Stok Otomatis:** Menggunakan Django signals (`pre_delete` dan `post_delete`) pada model `ReadyMix` untuk mendeteksi produk yang terlibat dan mengoreksi (recalculate) stok mereka kembali ke kondisi semula secara otomatis.
+
+### 📋 Pengurutan Produk Berdasarkan Urutan Import (Default Position)
+- **Kolom `created_at`:** Menambahkan field timestamp `created_at` dengan `default=timezone.now` pada model `Product`.
+- **Default Ordering:** Mengatur default sorting list product (`ordering = ['created_at']`) agar produk diurutkan berdasarkan urutan saat diimport dari Excel.
+
+---
+
 ## [2026-05-22] — Fitur Baru: Dashboard Analisis Penjualan & Visualisasi Data
 
 ### 📊 Fitur Dashboard Baru

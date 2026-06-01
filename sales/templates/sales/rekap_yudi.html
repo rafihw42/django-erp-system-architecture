@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📋 Rekap Yudi — ColorKing</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #417690;
+            --primary-dark: #205067;
+            --accent: #ffc107;
+            --bg-main: #f8fafc;
+            --bg-card: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bahan-color: #3b82f6;
+            --bahan-light: #eff6ff;
+            --rm-color: #8b5cf6;
+            --rm-light: #f5f3ff;
+            --faktur-color: #f59e0b;
+            --faktur-light: #fffbeb;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            padding: 24px;
+            line-height: 1.5;
+        }
+
+        .page-container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        /* ---- Header ---- */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .header-title-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-back {
+            display: inline-flex;
+            align-items: center;
+            background-color: var(--primary);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-back:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .page-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--primary-dark);
+        }
+
+        /* ---- Filter Panel ---- */
+        .filters-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px 20px;
+            display: flex;
+            gap: 20px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .filter-group label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .filter-select {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            background-color: white;
+            color: var(--text-main);
+            outline: none;
+            min-width: 140px;
+            transition: border-color 0.2s;
+            cursor: pointer;
+        }
+
+        .filter-select:focus {
+            border-color: var(--primary);
+        }
+
+        .btn-filter {
+            padding: 8px 20px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-filter:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .period-badge {
+            margin-left: auto;
+            padding: 6px 14px;
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            color: white;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        /* ---- Summary Cards ---- */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        @media (max-width: 1100px) {
+            .summary-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 700px) {
+            .summary-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .summary-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px 18px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .summary-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .summary-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+        }
+
+        .summary-card.bahan::before {
+            background: var(--bahan-color);
+        }
+
+        .summary-card.rm::before {
+            background: var(--rm-color);
+        }
+
+        .summary-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+        }
+
+        .summary-value {
+            font-size: 26px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .summary-card.bahan .summary-value {
+            color: var(--bahan-color);
+        }
+
+        .summary-card.rm .summary-value {
+            color: var(--rm-color);
+        }
+
+        .summary-card.selisih-pos .summary-value {
+            color: #16a34a;
+        }
+
+        .summary-card.selisih-neg .summary-value {
+            color: #dc2626;
+        }
+
+        .summary-card.selisih-zero .summary-value {
+            color: var(--text-muted);
+        }
+
+        .summary-card.selisih-pos::before {
+            background: #16a34a;
+        }
+
+        .summary-card.selisih-neg::before {
+            background: #dc2626;
+        }
+
+        .summary-card.selisih-zero::before {
+            background: var(--text-muted);
+        }
+
+        .summary-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        /* ---- Table Card ---- */
+        .table-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .table-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .table-card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--primary-dark);
+        }
+
+        .legend {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 3px;
+        }
+
+        .legend-dot.bahan {
+            background: var(--bahan-color);
+        }
+
+        .legend-dot.rm {
+            background: var(--rm-color);
+        }
+
+        .legend-dot.faktur {
+            background: var(--faktur-color);
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .rekap-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        /* Group headers */
+        .rekap-table thead tr.group-row th {
+            padding: 8px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            border-bottom: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .rekap-table thead tr.group-row th.th-tanggal {
+            background: #f1f5f9;
+            color: var(--primary-dark);
+            text-align: left;
+            border-right: 2px solid var(--border-color);
+        }
+
+        .rekap-table thead tr.group-row th.th-bahan {
+            background: var(--bahan-light);
+            color: var(--bahan-color);
+            border-right: 2px solid var(--border-color);
+        }
+
+        .rekap-table thead tr.group-row th.th-rm {
+            background: var(--rm-light);
+            color: var(--rm-color);
+            border-right: 2px solid var(--border-color);
+        }
+
+        .rekap-table thead tr.group-row th.th-faktur {
+            background: var(--faktur-light);
+            color: #92400e;
+        }
+
+        /* Sub-headers */
+        .rekap-table thead tr.sub-row th {
+            padding: 7px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            border-bottom: 2px solid var(--border-color);
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        .rekap-table thead tr.sub-row th.col-tanggal {
+            text-align: left;
+            background: #f8fafc;
+            border-right: 2px solid var(--border-color);
+        }
+
+        .rekap-table thead tr.sub-row th.col-bahan {
+            background: var(--bahan-light);
+        }
+
+        .rekap-table thead tr.sub-row th.col-bahan-last {
+            background: var(--bahan-light);
+            border-right: 2px solid var(--border-color);
+        }
+
+        .rekap-table thead tr.sub-row th.col-rm {
+            background: var(--rm-light);
+        }
+
+        .rekap-table thead tr.sub-row th.col-rm-last {
+            background: var(--rm-light);
+            border-right: 2px solid var(--border-color);
+        }
+
+        .rekap-table thead tr.sub-row th.col-faktur {
+            background: var(--faktur-light);
+            text-align: left;
+        }
+
+        /* Body rows */
+        .rekap-table tbody td {
+            padding: 7px 12px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: top;
+        }
+
+        .rekap-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .rekap-table tbody tr.has-data {
+            background-color: white;
+        }
+
+        .rekap-table tbody tr.no-data {
+            background-color: #fcfcfd;
+        }
+
+        .rekap-table tbody tr:hover {
+            background-color: #f8fafc !important;
+        }
+
+        .td-day {
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 12px;
+            text-align: left;
+            border-right: 2px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        .rekap-table tbody tr.has-data .td-day {
+            color: var(--primary-dark);
+            font-weight: 700;
+        }
+
+        .td-qty {
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+            color: var(--text-muted);
+        }
+
+        .td-qty.has-val {
+            color: var(--text-main);
+            font-weight: 600;
+        }
+
+        .td-qty.bahan.has-val {
+            color: var(--bahan-color);
+        }
+
+        .td-qty.rm.has-val {
+            color: var(--rm-color);
+        }
+
+        .td-bahan-last {
+            border-right: 2px solid var(--border-color);
+        }
+
+        .td-rm-last {
+            border-right: 2px solid var(--border-color);
+        }
+
+        .td-faktur {
+            text-align: left;
+            min-width: 120px;
+        }
+
+        .faktur-link {
+            display: inline-block;
+            background: var(--faktur-light);
+            color: #92400e;
+            border: 1px solid #fde68a;
+            border-radius: 4px;
+            padding: 2px 7px;
+            font-size: 11px;
+            font-weight: 600;
+            text-decoration: none;
+            margin: 1px 2px 1px 0;
+            transition: background-color 0.15s, color 0.15s;
+            white-space: nowrap;
+        }
+
+        .faktur-link:hover {
+            background-color: var(--faktur-color);
+            color: white;
+            border-color: var(--faktur-color);
+        }
+
+        .faktur-link.moving {
+            background: #f0fdf4;
+            color: #166534;
+            border-color: #bbf7d0;
+        }
+
+        .faktur-link.moving:hover {
+            background: #22c55e;
+            color: white;
+            border-color: #22c55e;
+        }
+
+        .faktur-no-nomor {
+            display: inline-block;
+            color: var(--text-muted);
+            font-size: 11px;
+            font-style: italic;
+        }
+
+        /* ---- Totals Row ---- */
+        .rekap-table tfoot td {
+            padding: 10px 12px;
+            border-top: 2px solid var(--border-color);
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .tfoot-label {
+            background: #f1f5f9;
+            color: var(--primary-dark);
+            border-right: 2px solid var(--border-color);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 11px;
+        }
+
+        .tfoot-bahan {
+            background: var(--bahan-light);
+            color: var(--bahan-color);
+            text-align: center;
+        }
+
+        .tfoot-bahan-last {
+            background: var(--bahan-light);
+            color: var(--bahan-color);
+            text-align: center;
+            border-right: 2px solid var(--border-color);
+        }
+
+        .tfoot-rm {
+            background: var(--rm-light);
+            color: var(--rm-color);
+            text-align: center;
+        }
+
+        .tfoot-rm-last {
+            background: var(--rm-light);
+            color: var(--rm-color);
+            text-align: center;
+            border-right: 2px solid var(--border-color);
+        }
+
+        .tfoot-faktur {
+            background: var(--faktur-light);
+            color: var(--text-muted);
+            font-size: 12px;
+            font-style: italic;
+            font-weight: 400;
+        }
+
+        /* ---- Empty State ---- */
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+        }
+
+        .empty-state-text {
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        .empty-state-sub {
+            font-size: 13px;
+            margin-top: 4px;
+        }
+
+        @media print {
+            body {
+                padding: 0;
+                background: white;
+            }
+
+            .filters-panel,
+            .btn-back,
+            .page-header {
+                display: none;
+            }
+
+            .table-card {
+                box-shadow: none;
+                border: none;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="page-container">
+
+        <!-- Header -->
+        <div class="page-header">
+            <div class="header-title-area">
+                <a href="/admin/" class="btn-back">⬅ Admin Panel</a>
+                <h1 class="page-title">📋 Rekap Yudi</h1>
+            </div>
+            {% for num, name in month_names %}
+            {% if num == selected_month %}
+            <span class="period-badge">{{ name }} {{ selected_year }}</span>
+            {% endif %}
+            {% endfor %}
+        </div>
+
+        <!-- Filter Panel -->
+        <form method="GET" action="{% url 'rekap_yudi' %}" class="filters-panel">
+            <div class="filter-group">
+                <label for="filter-bulan">Bulan</label>
+                <select id="filter-bulan" name="month" class="filter-select">
+                    {% for num, name in month_names %}
+                    <option value="{{ num }}" {% if num == selected_month %}selected{% endif %}>
+                        {{ name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="filter-tahun">Tahun</label>
+                <select id="filter-tahun" name="year" class="filter-select">
+                    {% for y in year_list %}
+                    <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="submit" class="btn-filter">🔍 Tampilkan</button>
+        </form>
+
+        <!-- Summary Cards -->
+        <div class="summary-grid">
+            <div class="summary-card bahan">
+                <div class="summary-label">Bahan (PU) — Total</div>
+                <div class="summary-value">{{ totals.bahan_pu }}</div>
+                <div class="summary-sub">unit dikonsumsi</div>
+            </div>
+            <div class="summary-card bahan">
+                <div class="summary-label">Bahan (NC) — Total</div>
+                <div class="summary-value">{{ totals.bahan_nc }}</div>
+                <div class="summary-sub">unit dikonsumsi</div>
+            </div>
+            <div class="summary-card rm">
+                <div class="summary-label">Ready Mix (PU) — Total</div>
+                <div class="summary-value">{{ totals.rm_pu }}</div>
+                <div class="summary-sub">unit diproduksi</div>
+            </div>
+            <div class="summary-card rm">
+                <div class="summary-label">Ready Mix (NC) — Total</div>
+                <div class="summary-value">{{ totals.rm_nc }}</div>
+                <div class="summary-sub">unit diproduksi</div>
+            </div>
+            <div
+                class="summary-card {% if totals.selisih_pu > 0 %}selisih-pos{% elif totals.selisih_pu < 0 %}selisih-neg{% else %}selisih-zero{% endif %}">
+                <div class="summary-label">Selisih PU</div>
+                <div class="summary-value">
+                    {% if totals.selisih_pu > 0 %}+{% endif %}{{ totals.selisih_pu }}
+                </div>
+                <div class="summary-sub">Bahan − Ready Mix</div>
+            </div>
+            <div
+                class="summary-card {% if totals.selisih_nc > 0 %}selisih-pos{% elif totals.selisih_nc < 0 %}selisih-neg{% else %}selisih-zero{% endif %}">
+                <div class="summary-label">Selisih NC</div>
+                <div class="summary-value">
+                    {% if totals.selisih_nc > 0 %}+{% endif %}{{ totals.selisih_nc }}
+                </div>
+                <div class="summary-sub">Bahan − Ready Mix</div>
+            </div>
+        </div>
+
+        <!-- Main Table -->
+        <div class="table-card">
+            <div class="table-card-header">
+                <span class="table-card-title">📆 Detail Harian — Operasi Ready Mix</span>
+                <div class="legend">
+                    <span class="legend-item"><span class="legend-dot bahan"></span> Bahan (Ingredient)</span>
+                    <span class="legend-item"><span class="legend-dot rm"></span> Ready Mix (Output)</span>
+                    <span class="legend-item"><span class="legend-dot faktur"></span> Faktur RM</span>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="rekap-table">
+                    <thead>
+                        <!-- Group row -->
+                        <tr class="group-row">
+                            <th class="th-tanggal" rowspan="1">Tanggal</th>
+                            <th class="th-bahan" colspan="2">Bahan (Ingredient Masuk)</th>
+                            <th class="th-rm" colspan="2">Ready Mix (Hasil Produksi)</th>
+                            <th class="th-faktur" rowspan="1">Faktur</th>
+                        </tr>
+                        <!-- Sub-header row -->
+                        <tr class="sub-row">
+                            <th class="col-tanggal">Tgl</th>
+                            <th class="col-bahan">PU</th>
+                            <th class="col-bahan-last">NC</th>
+                            <th class="col-rm">PU</th>
+                            <th class="col-rm-last">NC</th>
+                            <th class="col-faktur">Nomor Faktur</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for row in rows %}
+                        <tr class="{% if row.has_data %}has-data{% else %}no-data{% endif %}">
+
+                            <!-- Day -->
+                            <td class="td-day">{{ row.day }}</td>
+
+                            <!-- Bahan PU -->
+                            <td class="td-qty bahan {% if row.bahan_pu %}has-val{% endif %}">
+                                {% if row.bahan_pu %}{{ row.bahan_pu }}{% else %}—{% endif %}
+                            </td>
+
+                            <!-- Bahan NC -->
+                            <td class="td-qty bahan td-bahan-last {% if row.bahan_nc %}has-val{% endif %}">
+                                {% if row.bahan_nc %}{{ row.bahan_nc }}{% else %}—{% endif %}
+                            </td>
+
+                            <!-- RM PU -->
+                            <td class="td-qty rm {% if row.rm_pu %}has-val{% endif %}">
+                                {% if row.rm_pu %}{{ row.rm_pu }}{% else %}—{% endif %}
+                            </td>
+
+                            <!-- RM NC -->
+                            <td class="td-qty rm td-rm-last {% if row.rm_nc %}has-val{% endif %}">
+                                {% if row.rm_nc %}{{ row.rm_nc }}{% else %}—{% endif %}
+                            </td>
+
+                            <!-- Faktur links -->
+                            <td class="td-faktur">
+                                {% for faktur in row.faktur_list %}
+                                {% if faktur.nomor_faktur %}
+                                <a href="/print-readymix/{{ faktur.pk }}/" target="_blank" class="faktur-link"
+                                    title="Cetak {{ faktur.nomor_faktur }}">
+                                    🖨️ {{ faktur.nomor_faktur }}
+                                </a>
+                                {% else %}
+                                <a href="/print-readymix/{{ faktur.pk }}/" target="_blank" class="faktur-link"
+                                    title="Cetak Ready Mix #{{ faktur.pk }}">
+                                    🖨️ RM-{{ faktur.pk }}
+                                </a>
+                                {% endif %}
+                                {% empty %}
+                                {% if not row.has_data %}<span style="color:#cbd5e1; font-size:11px;">—</span>{% endif %}
+                                {% endfor %}
+                            </td>
+
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+
+                    <tfoot>
+                        <tr>
+                            <td class="tfoot-label">TOTAL</td>
+                            <td class="tfoot-bahan">{{ totals.bahan_pu }}</td>
+                            <td class="tfoot-bahan-last">{{ totals.bahan_nc }}</td>
+                            <td class="tfoot-rm">{{ totals.rm_pu }}</td>
+                            <td class="tfoot-rm-last">{{ totals.rm_nc }}</td>
+                            <td class="tfoot-faktur">— total bulan ini</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            {% if totals.bahan_pu == 0 and totals.bahan_nc == 0 and totals.rm_pu == 0 and totals.rm_nc == 0 %}
+            <div class="empty-state">
+                <div class="empty-state-icon">📭</div>
+                <div class="empty-state-text">Tidak ada data operasi Ready Mix</div>
+                <div class="empty-state-sub">untuk bulan ini. Coba pilih bulan/tahun lain.</div>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+
+</body>
+
+</html>

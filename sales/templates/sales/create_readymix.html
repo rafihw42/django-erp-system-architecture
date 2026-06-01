@@ -69,7 +69,7 @@
     </ul>
     {% endif %}
 
-    <form method="POST" action="{% url 'create_readymix' %}">
+    <form id="readymix-form" method="POST" action="{% if ready_mix %}{% url 'edit_readymix' ready_mix.pk %}{% else %}{% url 'create_readymix' %}{% endif %}" data-is-edit="{% if ready_mix %}true{% else %}false{% endif %}">
         {% csrf_token %}
         
         <!-- TYPE + DATE + NOTES -->
@@ -77,17 +77,17 @@
             <div class="form-group">
                 <label for="jenis">⚙️ Jenis Transaksi</label>
                 <select name="jenis" id="jenis" class="form-control" onchange="updateUIForJenis()" required>
-                    <option value="Ready Mix">Ready Mix (Racik Produk)</option>
-                    <option value="Moving">Moving (Pemindahan / Transfer)</option>
+                    <option value="Ready Mix" {% if ready_mix.jenis == 'Ready Mix' %}selected{% endif %}>Ready Mix (Racik Produk)</option>
+                    <option value="Moving" {% if ready_mix.jenis == 'Moving' %}selected{% endif %}>Moving (Pemindahan / Transfer)</option>
                 </select>
             </div>
             <div class="form-group">
                 <label for="tanggal">📅 Tanggal</label>
-                <input type="date" name="tanggal" id="tanggal" class="form-control" required>
+                <input type="date" name="tanggal" id="tanggal" class="form-control" value="{% if ready_mix %}{{ ready_mix.tanggal|date:'Y-m-d' }}{% endif %}" required>
             </div>
             <div class="form-group">
-                <label for="catatan">📝 Catatan (Opsional)</label>
-                <textarea name="catatan" id="catatan" class="form-control" placeholder="Contoh: Pemindahan ke cabang/mix khusus"></textarea>
+                <label for="nomor_faktur">📄 Nomor Faktur (Opsional)</label>
+                <input type="text" name="nomor_faktur" id="nomor_faktur" class="form-control" placeholder="Contoh: RM-001" value="{% if ready_mix %}{{ ready_mix.nomor_faktur|default:'' }}{% endif %}">
             </div>
         </div>
 
@@ -104,7 +104,27 @@
                 </tr>
             </thead>
             <tbody id="outputs-body">
-                <!-- JavaScript will inject rows here -->
+                <!-- JavaScript will inject rows here for create, or Django template renders existing for edit -->
+                {% if ready_mix %}
+                    {% for out in outputs %}
+                    <tr>
+                        <td>
+                            <select name="output_product[]" class="form-control select2-output" required>
+                                <option value="">-- Pilih Produk Hasil --</option>
+                                {% for p in products %}
+                                    <option value="{{ p.kode_barang }}" {% if p.kode_barang == out.product.kode_barang %}selected{% endif %}>{{ p.kode_barang }} - {{ p.nama_barang }} (Stok: {{ p.stok_saat_ini }})</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <input type="number" name="output_qty[]" class="form-control" min="1" placeholder="0" value="{{ out.qty }}" required>
+                        </td>
+                        <td style="vertical-align: middle; text-align: center;">
+                            <button type="button" class="btn btn-hapus" onclick="removeRow(this)">✕</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
             </tbody>
         </table>
 
@@ -121,7 +141,27 @@
                 </tr>
             </thead>
             <tbody id="ingredients-body">
-                <!-- JavaScript will inject rows here -->
+                <!-- JavaScript will inject rows here for create, or Django template renders existing for edit -->
+                {% if ready_mix %}
+                    {% for ing in ingredients %}
+                    <tr>
+                        <td>
+                            <select name="ingredient_product[]" class="form-control select2-ingredient" required>
+                                <option value="">-- Pilih Bahan --</option>
+                                {% for p in products %}
+                                    <option value="{{ p.kode_barang }}" {% if p.kode_barang == ing.product.kode_barang %}selected{% endif %}>{{ p.kode_barang }} - {{ p.nama_barang }} (Stok: {{ p.stok_saat_ini }})</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <input type="number" name="ingredient_qty[]" class="form-control" min="1" placeholder="0" value="{{ ing.qty }}" required>
+                        </td>
+                        <td style="vertical-align: middle; text-align: center;">
+                            <button type="button" class="btn btn-hapus" onclick="removeRow(this)">✕</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
             </tbody>
         </table>
 
@@ -206,6 +246,8 @@ function removeRow(button) {
 
 function updateUIForJenis() {
     const jenis = document.getElementById('jenis').value;
+    const form = document.getElementById('readymix-form');
+    const isEdit = form && form.getAttribute('data-is-edit') === 'true';
     
     // Elements to update
     const titleElement = document.getElementById('page-title');
@@ -216,10 +258,10 @@ function updateUIForJenis() {
     const addIngredientBtn = document.querySelector('.btn-tambah');
 
     if (jenis === 'Ready Mix') {
-        titleElement.textContent = '🧪 Ready Mix — Racik Produk';
+        titleElement.textContent = isEdit ? '🧪 Edit Ready Mix — Racik Produk' : '🧪 Ready Mix — Racik Produk';
         outputHeader.textContent = '📦 Produk Hasil (Output)';
         inputHeader.textContent = '🧪 Bahan yang Dipakai (Input)';
-        submitBtn.innerHTML = '🧪 Proses Ready Mix & Update Stok';
+        submitBtn.innerHTML = isEdit ? '🧪 Simpan Edit Ready Mix & Update Stok' : '🧪 Proses Ready Mix & Update Stok';
         addOutputBtn.innerHTML = '+ Tambah Produk Hasil';
         addIngredientBtn.innerHTML = '+ Tambah Bahan';
         
@@ -229,10 +271,10 @@ function updateUIForJenis() {
         $('#ingredients-table th:first').text('Nama Bahan');
         $('#ingredients-table th:nth-child(2)').text('Jumlah Dipakai');
     } else {
-        titleElement.textContent = '📦 Pemindahan (Moving) Produk';
+        titleElement.textContent = isEdit ? '📦 Edit Pemindahan (Moving) Produk' : '📦 Pemindahan (Moving) Produk';
         outputHeader.textContent = '📦 Produk Tujuan (Target/Output)';
         inputHeader.textContent = '📦 Produk Sumber (Source/Input)';
-        submitBtn.innerHTML = '📦 Proses Pemindahan (Moving) & Update Stok';
+        submitBtn.innerHTML = isEdit ? '📦 Simpan Edit Pemindahan (Moving) & Update Stok' : '📦 Proses Pemindahan (Moving) & Update Stok';
         addOutputBtn.innerHTML = '+ Tambah Produk Tujuan';
         addIngredientBtn.innerHTML = '+ Tambah Produk Sumber';
 
@@ -245,13 +287,31 @@ function updateUIForJenis() {
 }
 
 $(document).ready(function() {
-    // Set default date to today
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('tanggal').value = today;
+    const form = document.getElementById('readymix-form');
+    const isEdit = form && form.getAttribute('data-is-edit') === 'true';
 
-    // Add the first blank rows
-    addOutputRow();
-    addIngredientRow();
+    if (isEdit) {
+        // Edit mode initialization
+        const isReadyMix = document.getElementById('jenis').value === 'Ready Mix';
+        $('.select2-ingredient').select2({
+            placeholder: isReadyMix ? "-- Cari / Pilih Bahan --" : "-- Cari / Pilih Produk Sumber --",
+            width: '100%'
+        });
+        $('.select2-output').select2({
+            placeholder: isReadyMix ? "-- Cari / Pilih Produk Hasil --" : "-- Cari / Pilih Produk Tujuan --",
+            width: '100%'
+        });
+        updateUIForJenis();
+    } else {
+        // Create mode initialization
+        // Set default date to today
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('tanggal').value = today;
+
+        // Add the first blank rows
+        addOutputRow();
+        addIngredientRow();
+    }
 });
 </script>
 

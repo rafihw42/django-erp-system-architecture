@@ -10,28 +10,36 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env file (gitignored)
+load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-puve21nly&h-+t$7-p@o(q$00$^oiy%&&ctl(a^!k(xz&mnf4f'
+# Set in .env — see .env.example for setup instructions.
+SECRET_KEY = os.environ['SECRET_KEY']
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Defaults to False (safe) if not set in .env
+DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = ['*']
+# Comma-separated list, e.g. "localhost,mysite.com"
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
 
 CSRF_TRUSTED_ORIGINS = [
-    'https://*.ngrok-free.app', 
-    'https://*.ngrok-free.dev', 
-    'https://*.ngrok.app', 
-    'https://*.ngrok.dev'
+    'https://*.ngrok-free.app',
+    'https://*.ngrok-free.dev',
+    'https://*.ngrok.app',
+    'https://*.ngrok.dev',
 ]
 
 

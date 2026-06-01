@@ -1,56 +1,112 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <title>Nota: {{ invoice.nomor_faktur }}</title>
     <style>
         /* --- PRINT SETTINGS --- */
         @page {
-            size: halfletter landscape; 
-            margin: 0; 
+            size: halfletter landscape;
+            margin: 0;
         }
 
         /* --- NEW ANCHOR FIX --- */
-        html, body {
-            height: 100%; /* Forces the document to exactly match the paper height */
+        html,
+        body {
+            height: 100%;
+            /* Forces the document to exactly match the paper height */
             margin: 0;
         }
 
         /* --- TYPOGRAPHY & MAX-COMPACT SPACING --- */
-        body { 
-            font-family: 'Calibri', sans-serif; 
-            padding: 10px; 
-            font-size: 12px; 
-            line-height: 1.1; 
-            display: flex; /* Turns the entire page into a flex column */
-            flex-direction: column; 
-            box-sizing: border-box; /* Ensures padding doesn't break the 100% height */
+        body {
+            font-family: 'Calibri', sans-serif;
+            padding: 10px;
+            font-size: 13px;
+            line-height: 1.1;
+            display: flex;
+            /* Turns the entire page into a flex column */
+            flex-direction: column;
+            box-sizing: border-box;
+            /* Ensures padding doesn't break the 100% height */
         }
-        
-        .header-brand { font-weight: bold; font-size: 32px; margin: 0; line-height: 1; }
-        .header-sub { font-weight: bold; font-size: 15px; margin-bottom: 2px; } 
-        
+
+        .header-brand {
+            font-weight: bold;
+            font-size: 32px;
+            margin: 0;
+            line-height: 1;
+        }
+
+        .header-sub {
+            font-weight: bold;
+            font-size: 15px;
+            margin-bottom: 2px;
+        }
+
         /* --- HEADER INFO TABLE --- */
-        .info-table { width: 100%; margin-bottom: 2px; }
-        .info-table td { padding: 0; } 
-        
+        .info-table {
+            width: 100%;
+            margin-bottom: 2px;
+        }
+
+        .info-table td {
+            padding: 0;
+            vertical-align: top;
+        }
+
         /* --- TITLE --- */
-        .title-nota { text-align: center; font-weight: bold; font-size: 12px; margin: 2px 0 4px 0; }
+        .title-nota {
+            text-align: center;
+            font-weight: bold;
+            font-size: 12px;
+            margin: 2px 0 4px 0;
+        }
 
         /* --- ITEMS TABLE & CONTAINER --- */
-        .items-container { 
-            flex-grow: 1; /* This is the magic! It stretches to fill ALL empty vertical space */
-            margin-bottom: 2px; 
-        } 
-        .items-table { width: 100%; border-collapse: collapse; }
-        
+        .items-container {
+            flex-grow: 1;
+            /* This is the magic! It stretches to fill ALL empty vertical space */
+            margin-bottom: 2px;
+        }
+
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-bottom: 1px solid black;
+        }
+
         /* Table Header: Zero padding, thinner lines */
-        .items-table th { border: none; padding: 1px 2px; text-align: center; border-top: 1px solid black; border-bottom: 1px solid black; }
-        
+        .items-table th {
+            border: none;
+            padding: 1px 2px;
+            text-align: center;
+            border-top: 1px solid black;
+            border-bottom: 1px solid black;
+        }
+
         /* Table Values: Zero padding */
-        .items-table td { border: none; padding: 1px 2px; text-align: left; }
-        .items-table td:nth-child(4), .items-table td:nth-child(6) {text-align: right;}
-        .items-table td:nth-child(1), .items-table td:nth-child(2), .items-table td:nth-child(5) {text-align: center;}
+        .items-table td {
+            border: none;
+            padding: 0 2px;
+            text-align: left;
+        }
+
+        .items-table tbody tr {
+            height: 14px;
+        }
+
+        .items-table td:nth-child(4),
+        .items-table td:nth-child(6) {
+            text-align: right;
+        }
+
+        .items-table td:nth-child(1),
+        .items-table td:nth-child(2),
+        .items-table td:nth-child(5) {
+            text-align: center;
+        }
 
         /* --- UNIFIED FOOTER LAYOUT --- */
         .footer-container {
@@ -58,13 +114,15 @@
             justify-content: space-between;
             align-items: flex-start;
             width: 100%;
-            margin-top: auto; /* Anchors it firmly to the bottom edge */
+            margin-top: auto;
+            /* Anchors it firmly to the bottom edge */
         }
-        
+
         .signature-block {
             width: 25%;
             text-align: center;
         }
+
         .signature-block p {
             margin: 0;
         }
@@ -72,14 +130,17 @@
         .totals-block {
             width: 40%;
         }
+
         .totals-table {
             width: 100%;
             border-collapse: collapse;
-            font-weight: bold; 
+            font-weight: bold;
         }
+
         .totals-table td {
-            padding: 0 4px; 
+            padding: 0 4px;
         }
+
         .totals-table .text-right {
             text-align: right;
         }
@@ -90,27 +151,39 @@
             justify-content: space-between;
             align-items: center;
         }
+
         .currency-prefix {
             white-space: nowrap;
             margin-right: 4px;
         }
+
         .currency-value {
             text-align: right;
             flex: 1;
         }
-        
+
         /* Print Hiding */
         @media print {
-            .no-print { display: none; }
+            .no-print {
+                display: none;
+            }
+
             /* Maximizes printable area on the paper */
-            body { padding: 10mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            body {
+                padding: 10mm;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
         }
     </style>
 </head>
+
 <body>
-    
+
     <div class="no-print" style="margin-bottom: 10px;">
-        <button onclick="window.print()" style="padding: 8px; background: #007bff; color: white; border: none; cursor: pointer; font-size: 12px;">Print / Save PDF</button>
+        <button onclick="window.print()"
+            style="padding: 8px; background: #007bff; color: white; border: none; cursor: pointer; font-size: 12px;">Print
+            / Save PDF</button>
     </div>
 
     <!-- Separated Header -->
@@ -126,9 +199,11 @@
         </tr>
         <tr>
             <td><strong>Alamat</strong></td>
-            <td>: {{ invoice.customer.alamat|default:"-" }}</td>
-            <td><strong>Nomor Faktur</strong></td>
-            <td>: {{ invoice.nomor_faktur }}</td>
+            <td><span style="display:flex; align-items:flex-start;"><span
+                        style="white-space:nowrap; margin-right:2px;">:</span><span>{{invoice.customer.alamat|default:"-"}}</span></span>
+            </td>
+            <td style="white-space: nowrap;"><strong>Nomor Faktur</strong></td>
+            <td style="white-space: nowrap;">: {{ invoice.nomor_faktur }}</td>
         </tr>
         <tr>
             <!-- Sales is now perfectly aligned on the same row as Tanggal J/T -->
@@ -148,8 +223,8 @@
                     <th width="10%">No</th>
                     <th width="15%">Kode Barang</th>
                     <th width="30%">Nama Barang</th>
-                    <th width="15%">Harga</th>
-                    <th width="10%">Qty</th>
+                    <th width="12%">Harga</th>
+                    <th width="13%">Qty</th>
                     <th width="15%">Jumlah</th>
                 </tr>
             </thead>
@@ -172,22 +247,33 @@
                     </td>
                 </tr>
                 {% endfor %}
+
+                {% for _ in empty_rows %}
+                <tr>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>
 
     <!-- --- FOOTER --- -->
     <div class="footer-container">
-        
+
         <div class="signature-block">
             <p>Tanda Terima,</p>
-            <div style="height: 40px;"></div>
+            <div style="height: 65px;"></div>
             <p>(.......................................)</p>
         </div>
 
         <div class="signature-block">
             <p>Hormat Kami,</p>
-            <div style="height: 40px;"></div>
+            <div style="height: 65px;"></div>
             <p>(.......................................)</p>
         </div>
 
@@ -227,17 +313,18 @@
     </div>
 
     <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        var uangElements = document.querySelectorAll('.format-uang');
-        
-        uangElements.forEach(function(el) {
-            var angka = parseInt(el.innerText);
-            if (!isNaN(angka)) {
-                el.innerText = angka.toLocaleString('id-ID'); 
-            }
+        document.addEventListener("DOMContentLoaded", function () {
+            var uangElements = document.querySelectorAll('.format-uang');
+
+            uangElements.forEach(function (el) {
+                var angka = parseInt(el.innerText);
+                if (!isNaN(angka)) {
+                    el.innerText = angka.toLocaleString('id-ID');
+                }
+            });
         });
-    });
     </script>
 
 </body>
+
 </html>

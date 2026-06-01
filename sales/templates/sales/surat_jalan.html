@@ -8,13 +8,13 @@
         /* Force exact Half Letter dimensions for printing */
         @page {
             size: 8.5in 5.5in;
-            margin: 0.13in;
+            margin: 0.15in;
         }
 
         body {
-            font-family: 'Times New Roman', Times, serif;
-            font-size: 10pt;
-            line-height: 1.2;
+            font-family: 'Calibri', sans-serif;
+            font-size: 11pt;
+            line-height: 1.1;
             margin: 0;
             padding: 0;
             color: black;
@@ -38,11 +38,11 @@
             text-transform: uppercase;
         }
 
-        /* NEW: Split Header Section */
+        /* Split Header Section */
         .top-section {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
 
         /* Borderless tables for perfect colon (:) alignment */
@@ -68,7 +68,6 @@
         }
 
         .info-address {
-            font-size: 8pt;
             line-height: 1.1;
         }
 
@@ -84,30 +83,33 @@
             border-right: none;
         }
 
-        table.main-table th,
-        table.main-table td {
-            border: 1px solid black;
-            padding: 2px 6px;
-        }
-
         table.main-table th {
+            border: none;
+            border-top: 1px solid black;
+            border-bottom: 1px solid black;
+            padding: 3px 6px;
             font-weight: bold;
             text-align: center;
         }
 
-        table.main-table tbody tr {
-            height: 16px;
+        table.main-table td {
+            border: none;
+            padding: 1px 6px;
         }
 
-        /* NEW COLUMN WIDTHS */
+        table.main-table tbody tr {
+            height: 20px;
+        }
+
+        /* COLUMN WIDTHS */
         .no-col {
             width: 5%;
             text-align: center;
-            border-left: none;
         }
 
         .kode-col {
             width: 20%;
+            text-align: center;
         }
 
         .name-col {
@@ -117,14 +119,13 @@
         .qty-col {
             width: 15%;
             text-align: center;
-            border-right: none;
         }
 
-        /* FOOTER (Kept exactly as before!) */
+        /* FOOTER */
         .signature-section {
             display: flex;
             justify-content: space-between;
-            margin-top: 5px;
+            margin-top: 4px;
             text-align: center;
         }
 
@@ -133,7 +134,7 @@
         }
 
         .sign-space {
-            height: 40px;
+            height: 65px;
         }
     </style>
 </head>
@@ -159,10 +160,10 @@
                             <td>{{ invoice.customer.nama_cust }}</td>
                         </tr>
                         <tr>
-                            <td class="info-label">Alamat Penerima</td>
+                            <td class="info-label">Alamat</td>
                             <td class="info-colon">:</td>
                             <td class="info-address">
-                                {{ invoice.customer.alamat|default:"........................................................"}}
+                                {{invoice.customer.alamat|default:"........................................................"}}
                             </td>
                         </tr>
                     </table>
@@ -221,6 +222,7 @@
             </table>
         </div>
 
+        <hr style="border: none; border-top: 1px solid black; margin: 4px 0;">
         <div class="signature-section">
             <div class="sign-box">
                 Tanda tangan yang menerima,
